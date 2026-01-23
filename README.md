@@ -1,2 +1,2 @@
 # serveurRSAI_ZMQ
-serveur for RSAI motors
+serveur for RSAI motors with ZMQ 
