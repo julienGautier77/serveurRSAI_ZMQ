@@ -82,17 +82,17 @@ class ONEMOTORGUI(QWidget):
         self.name = [0, 0, 0]
         
         for zzi in range(0, 1):
-            self.stepmotor[zzi] = float((self.MOT[0].getStepValue()))
+            self.stepmotor[zzi] = float((1/self.MOT[0].getStepValue()))
             self.butePos[zzi] = float(self.MOT[0].getButLogPlusValue())
             self.buteNeg[zzi] = float(self.MOT[0].getButLogMoinsValue())
             self.name[zzi] = str(self.MOT[0].name)
-        # Init unités
 
+        # Init unités
         if self.indexUnit == 0:
             self.unitChange = 1
             self.unitName = 'step'
         elif self.indexUnit == 1:
-            self.unitChange = float(self.stepmotor[0])
+            self.unitChange = float((1*self.stepmotor[0]))
             self.unitName = 'um'
         elif self.indexUnit == 2:
             self.unitChange = float((self.stepmotor[0])/1000)
@@ -101,7 +101,7 @@ class ONEMOTORGUI(QWidget):
             self.unitChange = float(self.stepmotor[0]*0.0066666666)
             self.unitName = 'ps'
         elif self.indexUnit == 4:
-            self.unitChange = self.stepmotor[0]
+            self.unitChange = 1 * self.stepmotor[0]
             self.unitName = '°'
 
         self.thread = PositionThread(self, mot=self.MOT[0])
@@ -124,7 +124,7 @@ class ONEMOTORGUI(QWidget):
         time.sleep(0.1)
         
         for zzi in range(0, 1):
-            self.stepmotor[zzi] = float((self.MOT[0].step))
+            self.stepmotor[zzi] = float(1/(self.MOT[0].step))
             self.butePos[zzi] = float(self.MOT[0].butPlus)
             self.buteNeg[zzi] = float(self.MOT[0].butMoins)
             self.name[zzi] = str(self.MOT[0].name)
@@ -147,7 +147,7 @@ class ONEMOTORGUI(QWidget):
             iii += 1
         eee = 0
         for absButton in self.absRef:
-            absButton.setValue(float(self.refValueStep[eee]*self.unitChange))
+            absButton.setValue(float(self.refValueStep[eee]/self.unitChange))
             eee += 1
             
         self.addLog("Update", "Données synchronisées depuis RSAI")
@@ -156,7 +156,7 @@ class ONEMOTORGUI(QWidget):
         i = 0
         if self.refValueStep != self.refValueStepOld:
             for ref in self.refValueStep:
-                ref = ref * float(self.stepmotor[0])
+                ref = ref * float((self.stepmotor[0]))
                 a = self.MOT[0].setRefValue(i, int(ref))
                 i += 1
         i = 0
@@ -526,11 +526,6 @@ class ONEMOTORGUI(QWidget):
     def focusOutEvent(self, event):
         super().focusOutEvent(event)
         self.thread.positionSleep = 1
-        # print('focus out')
-
-    def focusInEvent(self, event):
-        super().focusInEvent(event)
-        self.thread.positionSleep = 0.02
 
     def actionButton(self):
         self.unitBouton.currentIndexChanged.connect(self.unit)
@@ -675,10 +670,10 @@ class ONEMOTORGUI(QWidget):
             self.unitChange = float((self.stepmotor[0])/1000)
             self.unitName = 'mm'
         elif self.indexUnit == 3:
-            self.unitChange = float(self.stepmotor[0]*0.0066666666)
+            self.unitChange = float(1*self.stepmotor[0]*0.0066666666)
             self.unitName = 'ps'
         elif self.indexUnit == 4:
-            self.unitChange = self.stepmotor[0]
+            self.unitChange = 1 * self.stepmotor[0]
             self.unitName = '°'
 
         if self.unitChange == 0:
@@ -742,23 +737,19 @@ class ONEMOTORGUI(QWidget):
             elif self.etat == 'errorConnect':
                 self.enPosition.setText('❌ Équipement non connecté')
                 self.enPosition.setStyleSheet('font: bold 10pt; color: red; background-color: #2d2d2d; border: 1px solid red; padding: 5px;')
-        if self.etat == 'ok' or self.etat == '?':
-           
-            precis = 2
-            positionConnue = 0
+            elif self.etat == 'ok' or self.etat == '?':
+                self.enPosition.setText('✅')
+                self.enPosition.setStyleSheet('font: bold 11pt; color: #00ff00; background-color: #2d2d2d; border: 1px solid #555; padding: 5px;')
+
+        positionConnue = 0
+        precis = 5
+        if (self.etat == 'ok' or self.etat == '?'):
             for nbRefInt in range(1, 7):
                 if positionConnue == 0:
-                    
                     if float(self.refValueStep[nbRefInt-1]) - precis < b < float(self.refValueStep[nbRefInt-1]) + precis:
                         self.enPosition.setText(f'📍 {self.refName[nbRefInt-1]}')
                         self.enPosition.setStyleSheet('font: bold 11pt; color: #4a9eff; background-color: #2d2d2d; border: 1px solid #4a9eff; padding: 5px;')
                         positionConnue = 1
-                        break
-
-                    else: 
-                        self.enPosition.setText('✅')
-                        self.enPosition.setStyleSheet('font: bold 11pt; color: #00ff00; background-color: #2d2d2d; border: 1px solid #555; padding: 5px;')
-
 
     def Etat(self, etat):
         self.etat = etat
@@ -970,7 +961,6 @@ class PositionThread(QtCore.QThread):
             else:
                 Posi = (self.MOT.position())
                 time.sleep(self.positionSleep)
-                #  print(f"positiosleep {self.positionSleep}")
                 etat = self.MOT.etatMotor()
                 try:
                     if self.Posi_old != Posi or self.etat_old != etat:
@@ -1315,9 +1305,9 @@ class ConfigMotorWidget(QWidget):
         
         if reply == QMessageBox.StandardButton.Yes:
             try:
-                new_step = float(self.stepSpinBox.value())
-                new_but_neg = float(self.butNegSpinBox.value())
-                new_but_pos = float(self.butPosSpinBox.value())
+                new_step = self.stepSpinBox.value()
+                new_but_neg = self.butNegSpinBox.value()
+                new_but_pos = self.butPosSpinBox.value()
                 
                 if new_but_neg >= new_but_pos:
                     QMessageBox.warning(self, "Erreur", 
@@ -1333,9 +1323,8 @@ class ConfigMotorWidget(QWidget):
                 self.parent.buteNeg[0] = new_but_neg
                 self.parent.butePos[0] = new_but_pos
                 self.parent.unit()
-                self.motor.setStep(new_step)  
-                self.motor.setButLogPlusValue(new_but_pos)
-                self.motor.setButLogMoinsValue(new_but_neg)                    
+                self.self.motor.setStep(new_step)
+                self.self.motor.setSoftwareLimits(new_but_neg, new_but_pos)                     
                 self.parent.addLog("Config", 
                     f"⚙️ Sauvegardé - Step: {new_step:.6f} µm, Butées: [{new_but_neg}, {new_but_pos}]")
                 
@@ -1354,7 +1343,7 @@ class ConfigMotorWidget(QWidget):
 
 if __name__ == '__main__':
     appli = QApplication(sys.argv)
-    mot1 = ONEMOTORGUI(IpAdress="10.0.1.30", NoMotor=12, showRef=False, unit=1, jogValue=100)
+    mot1 = ONEMOTORGUI(IpAdress="10.0.0.1", NoMotor=1, showRef=False, unit=1, jogValue=100)
     mot1.show()
     mot1.startThread2()
     appli.exec_()

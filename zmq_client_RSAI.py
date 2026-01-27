@@ -73,7 +73,7 @@ class MOTORRSAI():
             # Configuration des timeouts et options (optimisé pour 60+ clients)
             self.socket.setsockopt(zmq.RCVTIMEO, 5000)  # Timeout réception: 5s (augmenté)
             self.socket.setsockopt(zmq.SNDTIMEO, 5000)  # Timeout envoi: 5s (augmenté)
-            self.socket.setsockopt(zmq.LINGER, 1000)    # Attendre 1s à la fermeture
+            self.socket.setsockopt(zmq.LINGER, 500)    # Attendre 1s à la fermeture
             self.socket.setsockopt(zmq.SNDHWM, 100)     # Queue d'envoi
             self.socket.setsockopt(zmq.RCVHWM, 100)     # Queue de réception
 

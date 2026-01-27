@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Terminal=false
+Exec=/home/sallejaune/loaenv/bin/python3.12 /home/sallejaune/Documents/python/serverRSAI/MainTrees.py
+Name=MotorRSAI
+StartupNotify=true
+Icon=/home/sallejaune/Documents/python/serverRSAI/icons/moteur.png

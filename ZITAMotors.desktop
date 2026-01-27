@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Terminal=false
+Exec=/home/sallejaune/loaenv/bin/python3.12 /home/sallejaune/Documents/python/serverRSAI/ZitaMotors.py
+Name=ZITA Motors
+StartupNotify=true
+Icon=/home/sallejaune/Documents/python/serverRSAI/icons/moteur.png

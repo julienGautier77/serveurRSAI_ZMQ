@@ -263,7 +263,7 @@ class SERVERRSAI(QWidget):
             'details': details
         }
         self.actionLog.append(log_entry)
-        print(f"[LOG] {timestamp} - {action}  -  {details}")
+        #  print(f"[LOG] {timestamp} - {action}  -  {details}")
     
     def showLog(self):
         """Affiche la fenêtre de log"""
@@ -328,7 +328,7 @@ class SERVERZMQ(QtCore.QThread):
 
         # ROUTER pour recevoir les clients
         self.frontend = self.context.socket(zmq.ROUTER)
-        self.frontend.setsockopt(zmq.LINGER,0) # le socket s'arrte de suite
+        self.frontend.setsockopt(zmq.LINGER,100) # le socket s'arrte de suite
         self.frontend.setsockopt(zmq.SNDHWM, 1000)
         self.frontend.setsockopt(zmq.RCVHWM, 1000)
         self.frontend.bind(f"tcp://*:{self.frontend_port}")
@@ -337,7 +337,7 @@ class SERVERZMQ(QtCore.QThread):
         self.backend = self.context.socket(zmq.DEALER)
         self.backend.setsockopt(zmq.SNDHWM, 1000)
         self.backend.setsockopt(zmq.RCVHWM, 1000)
-        self.backend.setsockopt(zmq.LINGER,0)
+        self.backend.setsockopt(zmq.LINGER,100)
         self.backend.bind(f"tcp://*:{self.backend_port}")
 
         self.isConnected = True
@@ -528,7 +528,7 @@ class SERVERZMQ(QtCore.QThread):
                 regCde = ctypes.c_uint(4)
                 err = self.PilMot.wCdeMot(numEsim, axe, regCde, value, vit)
                 log_message = ("rmove", f"RMOVE - {name} déplacement relatif {valueStr}")
-                return 'ok\n', log_message
+                return 'ok\n', None
 
             elif cmd == 'stop':
                 regCde = ctypes.c_uint(8)
@@ -627,7 +627,7 @@ class SERVERZMQ(QtCore.QThread):
                 return st + '\n', None
             
             elif cmd == 'setStep':
-                print('set step in server')
+                # print('set step in server')
                 try:
                     step = float(para3)
                     self.parent.db.setStep(ip,axe,step)
@@ -675,6 +675,13 @@ class SERVERZMQ(QtCore.QThread):
             elif cmd == 'nbMotRackIP': # retourne l nombre de moteur pour le rack IP 
                 nbMotRack = self.parent.nbMotorRack
                 return str(nbMotRack) + '\n', None
+            elif cmd == 'preset':
+                
+                regCde = ctypes.c_uint(2048) # preset position 
+                err = self.PilMot.wCdeMot(numEsim ,axe, regCde, value, vit)
+                sendmsg = 'ok'+'\n'
+                log_message = ('Preset', f"SET nex position - {value} ")
+                return 'ok\n', None
             else:
                 log_message = ('System', f"UNKNOWN COMMAND - Commande inconnue: {cmd}")
                 return 'error: unknown command\n', log_message
