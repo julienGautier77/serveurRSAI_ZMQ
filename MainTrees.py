@@ -1,4 +1,4 @@
-#!/home/sallejaune/loaenv/bin/env python
+#!/home/sallejaune/loaenv/bin/python
 # -*- coding: utf-8 -*-
 # last modified 08/01/2026
 # Transformé pour ZMQ DEALER - Compatible avec serveur ROUTER-DEALER
@@ -69,10 +69,26 @@ class ZMQClient:
             self.socket.setsockopt(zmq.IDENTITY, identity)
             
             self.socket.connect(self.server_address)
+
+                # ⭐ AJOUTEZ CECI : Vider le buffer au démarrage
+            self.socket.setsockopt(zmq.LINGER, 0)
+            self.socket.setsockopt(zmq.RCVTIMEO, 1000)  # Timeout 1 seconde
+    
+            # Vider les messages résiduels éventuels
+            try:
+                while True:
+                    self.socket.recv(zmq.NOBLOCK)
+                    print("🧹 Message résiduel vidé")
+            except zmq.Again:
+                print("✅ Buffer vidé, socket prêt")
+    
+            # Remettre le timeout normal
+            self.socket.setsockopt(zmq.RCVTIMEO, 5000)
+
             self.isconnected = True
             self.server_available = True
             print(f"✅ Client ZMQ connecté à {self.server_address}")
-            
+            time.sleep(0.5)  # Attendre un peu
         except Exception as e:
             self.isconnected = False
             self.server_available = False
@@ -128,13 +144,16 @@ class ZMQClient:
         with self.mut:
             try:
                 # DEALER envoie: [frame vide, message]
-                self.socket.send_string('', zmq.SNDMORE)
+                self.socket.send(b'', zmq.SNDMORE)
                 self.socket.send_string(message)
                 
-                # Recevoir: [frame vide, réponse]
-                self.socket.recv()
-                response = self.socket.recv_string()
-                
+                # Recevoir : frame vide + réponse
+                empty = self.socket.recv()
+                retour_brut = self.socket.recv_string()
+            
+                # Nettoyer la réponse
+                response = retour_brut.strip()
+            
                 self.isconnected = True
                 self.server_available = True
                 return response

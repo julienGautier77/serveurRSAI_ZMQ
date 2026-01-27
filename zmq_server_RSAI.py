@@ -1,3 +1,6 @@
+#!/home/sallejaune/loaenv/bin/python
+# -*- coding: utf-8 -*-
+from PyQt6.QtWidgets import Q
 """
 Serveur RSAI avec ZMQ ROUTER-DEALER
 Version avec les workers

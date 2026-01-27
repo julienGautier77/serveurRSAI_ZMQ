@@ -1,3 +1,5 @@
+#!/home/sallejaune/loaenv/bin/env python
+# -*- coding: utf-8 -*-
 from PyQt6.QtWidgets import QApplication
 import os
 import qdarkstyle,sys
