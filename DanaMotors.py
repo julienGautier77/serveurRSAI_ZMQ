@@ -24,7 +24,7 @@ from oneMotorGui import ONEMOTORGUI
 
 # Import des widgets spéciaux
 try:
-    from threeMotorGuiFB import THREEMOTORGUI
+    from threeMotorGui import THREEMOTORGUI
     from TiltGui import TILTMOTORGUI
 except ImportError:
     print("⚠️ Widgets spéciaux non disponibles")
