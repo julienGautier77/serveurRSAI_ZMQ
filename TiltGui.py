@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -175,77 +176,7 @@ class TILTMOTORGUI(QWidget):
         # Séparateur
         groupLayout.addSpacing(5)
         
-        # Contrôles & Positions
-        controlPosLayout = QHBoxLayout()
-        controlPosLayout.setSpacing(15)
-        
-        # Positions (gauche)
-        positionsLayout = QVBoxLayout()
-        positionsLayout.setSpacing(8)
-        
-        # Lateral
-        latLayout = QVBoxLayout()
-        latLayout.setSpacing(3)
-        latLabel = QLabel('Lateral')
-        latLabel.setStyleSheet("font: bold 10pt; color: #888;")
-        latLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        self.position_Lat = QLabel('0.00')
-        self.position_Lat.setStyleSheet("""
-            QLabel {
-                font: bold 20pt;
-                color: #00ff00;
-                background-color: #1e1e1e;
-                padding: 8px;
-                border: 2px solid #00ff00;
-                border-radius: 5px;
-            }
-        """)
-        self.position_Lat.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.position_Lat.setMinimumHeight(50)
-        
-        self.zeroButtonLat = QPushButton('⓪ Zero')
-        self.zeroButtonLat.setStyleSheet("padding: 5px; font: bold 9pt;")
-        self.zeroButtonLat.setMaximumHeight(30)
-        
-        latLayout.addWidget(latLabel)
-        latLayout.addWidget(self.position_Lat)
-        latLayout.addWidget(self.zeroButtonLat)
-        positionsLayout.addLayout(latLayout)
-        
-        # Vertical
-        vertLayout = QVBoxLayout()
-        vertLayout.setSpacing(3)
-        vertLabel = QLabel('Vertical')
-        vertLabel.setStyleSheet("font: bold 10pt; color: #888;")
-        vertLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        self.position_Vert = QLabel('0.00')
-        self.position_Vert.setStyleSheet("""
-            QLabel {
-                font: bold 20pt;
-                color: #00ff00;
-                background-color: #1e1e1e;
-                padding: 8px;
-                border: 2px solid #00ff00;
-                border-radius: 5px;
-            }
-        """)
-        self.position_Vert.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.position_Vert.setMinimumHeight(50)
-        
-        self.zeroButtonVert = QPushButton('⓪ Zero')
-        self.zeroButtonVert.setStyleSheet("padding: 5px; font: bold 9pt;")
-        self.zeroButtonVert.setMaximumHeight(30)
-        
-        vertLayout.addWidget(vertLabel)
-        vertLayout.addWidget(self.position_Vert)
-        vertLayout.addWidget(self.zeroButtonVert)
-        positionsLayout.addLayout(vertLayout)
-        
-        controlPosLayout.addLayout(positionsLayout, 2)
-        
-        # Contrôles directionnels (centre)
+        # Contrôles directionnels
         grid_layout = QGridLayout()
         grid_layout.setVerticalSpacing(5)
         grid_layout.setHorizontalSpacing(5)
@@ -296,8 +227,78 @@ class TILTMOTORGUI(QWidget):
         grid_layout.addWidget(self.droite, 1, 2, Qt.AlignmentFlag.AlignCenter)
         grid_layout.addWidget(self.jogStep, 1, 1, Qt.AlignmentFlag.AlignCenter)
         
-        controlPosLayout.addLayout(grid_layout, 1)
-        groupLayout.addLayout(controlPosLayout)
+        groupLayout.addLayout(grid_layout)
+        
+        # Séparateur
+        groupLayout.addSpacing(10)
+        
+        # Positions et Zero en ligne sous les flèches
+        positionsLayout = QHBoxLayout()
+        positionsLayout.setSpacing(15)
+        
+        # Lateral (Horizontal)
+        latLayout = QVBoxLayout()
+        latLayout.setSpacing(3)
+        latLabel = QLabel('Lateral')
+        latLabel.setStyleSheet("font: bold 10pt; color: #888;")
+        latLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        self.position_Lat = QLabel('0.00')
+        self.position_Lat.setStyleSheet("""
+            QLabel {
+                font: bold 18pt;
+                color: #00ff00;
+                background-color: #1e1e1e;
+                padding: 6px;
+                border: 2px solid #00ff00;
+                border-radius: 5px;
+            }
+        """)
+        self.position_Lat.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.position_Lat.setMinimumHeight(45)
+        self.position_Lat.setMinimumWidth(150)
+        
+        self.zeroButtonLat = QPushButton('⓪ Zero')
+        self.zeroButtonLat.setStyleSheet("padding: 5px; font: bold 9pt;")
+        self.zeroButtonLat.setMaximumHeight(30)
+        
+        latLayout.addWidget(latLabel)
+        latLayout.addWidget(self.position_Lat)
+        latLayout.addWidget(self.zeroButtonLat)
+        positionsLayout.addLayout(latLayout)
+        
+        # Vertical
+        vertLayout = QVBoxLayout()
+        vertLayout.setSpacing(3)
+        vertLabel = QLabel('Vertical')
+        vertLabel.setStyleSheet("font: bold 10pt; color: #888;")
+        vertLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        self.position_Vert = QLabel('0.00')
+        self.position_Vert.setStyleSheet("""
+            QLabel {
+                font: bold 18pt;
+                color: #00ff00;
+                background-color: #1e1e1e;
+                padding: 6px;
+                border: 2px solid #00ff00;
+                border-radius: 5px;
+            }
+        """)
+        self.position_Vert.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.position_Vert.setMinimumHeight(45)
+        self.position_Vert.setMinimumWidth(150)
+        
+        self.zeroButtonVert = QPushButton('⓪ Zero')
+        self.zeroButtonVert.setStyleSheet("padding: 5px; font: bold 9pt;")
+        self.zeroButtonVert.setMaximumHeight(30)
+        
+        vertLayout.addWidget(vertLabel)
+        vertLayout.addWidget(self.position_Vert)
+        vertLayout.addWidget(self.zeroButtonVert)
+        positionsLayout.addLayout(vertLayout)
+        
+        groupLayout.addLayout(positionsLayout)
         
         # Séparateur
         groupLayout.addSpacing(10)
@@ -512,10 +513,10 @@ class TILTMOTORGUI(QWidget):
             self.position_Lat.setText('⚠️ FDC-')
             self.position_Lat.setStyleSheet("""
                 QLabel {
-                    font: bold 16pt;
+                    font: bold 14pt;
                     color: #ff6b6b;
                     background-color: #1e1e1e;
-                    padding: 8px;
+                    padding: 6px;
                     border: 2px solid #ff6b6b;
                     border-radius: 5px;
                 }
@@ -524,10 +525,10 @@ class TILTMOTORGUI(QWidget):
             self.position_Lat.setText('⚠️ FDC+')
             self.position_Lat.setStyleSheet("""
                 QLabel {
-                    font: bold 16pt;
+                    font: bold 14pt;
                     color: #ff6b6b;
                     background-color: #1e1e1e;
-                    padding: 8px;
+                    padding: 6px;
                     border: 2px solid #ff6b6b;
                     border-radius: 5px;
                 }
@@ -536,10 +537,10 @@ class TILTMOTORGUI(QWidget):
             self.position_Lat.setText('❌ Power Off')
             self.position_Lat.setStyleSheet("""
                 QLabel {
-                    font: bold 14pt;
+                    font: bold 12pt;
                     color: #ff6b6b;
                     background-color: #1e1e1e;
-                    padding: 8px;
+                    padding: 6px;
                     border: 2px solid #ff6b6b;
                     border-radius: 5px;
                 }
@@ -548,10 +549,10 @@ class TILTMOTORGUI(QWidget):
             self.position_Lat.setText('Mvt...')
             self.position_Lat.setStyleSheet("""
                 QLabel {
-                    font: bold 16pt;
+                    font: bold 14pt;
                     color: white;
                     background-color: #1e1e1e;
-                    padding: 8px;
+                    padding: 6px;
                     border: 2px solid #4a9eff;
                     border-radius: 5px;
                 }
@@ -560,10 +561,10 @@ class TILTMOTORGUI(QWidget):
             self.position_Lat.setText('❌ Non connecté')
             self.position_Lat.setStyleSheet("""
                 QLabel {
-                    font: bold 10pt;
+                    font: bold 9pt;
                     color: #ff6b6b;
                     background-color: #1e1e1e;
-                    padding: 8px;
+                    padding: 6px;
                     border: 2px solid #ff6b6b;
                     border-radius: 5px;
                 }
@@ -572,10 +573,10 @@ class TILTMOTORGUI(QWidget):
             self.position_Lat.setText('❌ Erreur')
             self.position_Lat.setStyleSheet("""
                 QLabel {
-                    font: bold 10pt;
+                    font: bold 9pt;
                     color: #ff6b6b;
                     background-color: #1e1e1e;
-                    padding: 8px;
+                    padding: 6px;
                     border: 2px solid #ff6b6b;
                     border-radius: 5px;
                 }
@@ -584,10 +585,10 @@ class TILTMOTORGUI(QWidget):
             self.position_Lat.setText(f"{round(a, 2)} {self.unitName}")
             self.position_Lat.setStyleSheet("""
                 QLabel {
-                    font: bold 20pt;
+                    font: bold 18pt;
                     color: #00ff00;
                     background-color: #1e1e1e;
-                    padding: 8px;
+                    padding: 6px;
                     border: 2px solid #00ff00;
                     border-radius: 5px;
                 }
@@ -605,10 +606,10 @@ class TILTMOTORGUI(QWidget):
             self.position_Vert.setText('⚠️ FDC-')
             self.position_Vert.setStyleSheet("""
                 QLabel {
-                    font: bold 16pt;
+                    font: bold 14pt;
                     color: #ff6b6b;
                     background-color: #1e1e1e;
-                    padding: 8px;
+                    padding: 6px;
                     border: 2px solid #ff6b6b;
                     border-radius: 5px;
                 }
@@ -617,10 +618,10 @@ class TILTMOTORGUI(QWidget):
             self.position_Vert.setText('⚠️ FDC+')
             self.position_Vert.setStyleSheet("""
                 QLabel {
-                    font: bold 16pt;
+                    font: bold 14pt;
                     color: #ff6b6b;
                     background-color: #1e1e1e;
-                    padding: 8px;
+                    padding: 6px;
                     border: 2px solid #ff6b6b;
                     border-radius: 5px;
                 }
@@ -629,10 +630,10 @@ class TILTMOTORGUI(QWidget):
             self.position_Vert.setText('❌ Power Off')
             self.position_Vert.setStyleSheet("""
                 QLabel {
-                    font: bold 14pt;
+                    font: bold 12pt;
                     color: #ff6b6b;
                     background-color: #1e1e1e;
-                    padding: 8px;
+                    padding: 6px;
                     border: 2px solid #ff6b6b;
                     border-radius: 5px;
                 }
@@ -641,10 +642,10 @@ class TILTMOTORGUI(QWidget):
             self.position_Vert.setText('Mvt...')
             self.position_Vert.setStyleSheet("""
                 QLabel {
-                    font: bold 16pt;
+                    font: bold 14pt;
                     color: white;
                     background-color: #1e1e1e;
-                    padding: 8px;
+                    padding: 6px;
                     border: 2px solid #4a9eff;
                     border-radius: 5px;
                 }
@@ -653,10 +654,10 @@ class TILTMOTORGUI(QWidget):
             self.position_Vert.setText('❌ Non connecté')
             self.position_Vert.setStyleSheet("""
                 QLabel {
-                    font: bold 10pt;
+                    font: bold 9pt;
                     color: #ff6b6b;
                     background-color: #1e1e1e;
-                    padding: 8px;
+                    padding: 6px;
                     border: 2px solid #ff6b6b;
                     border-radius: 5px;
                 }
@@ -665,10 +666,10 @@ class TILTMOTORGUI(QWidget):
             self.position_Vert.setText('❌ Erreur')
             self.position_Vert.setStyleSheet("""
                 QLabel {
-                    font: bold 10pt;
+                    font: bold 9pt;
                     color: #ff6b6b;
                     background-color: #1e1e1e;
-                    padding: 8px;
+                    padding: 6px;
                     border: 2px solid #ff6b6b;
                     border-radius: 5px;
                 }
@@ -677,10 +678,10 @@ class TILTMOTORGUI(QWidget):
             self.position_Vert.setText(f"{round(a, 2)} {self.unitName}")
             self.position_Vert.setStyleSheet("""
                 QLabel {
-                    font: bold 20pt;
+                    font: bold 18pt;
                     color: #00ff00;
                     background-color: #1e1e1e;
-                    padding: 8px;
+                    padding: 6px;
                     border: 2px solid #00ff00;
                     border-radius: 5px;
                 }
