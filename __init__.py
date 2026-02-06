@@ -6,5 +6,6 @@ Created on Mon May  05/01/2026
 @author: julien gautier
 """
 
-__version__ = 2026.1
+__version__ = 2026.2
 __author__ = 'Julien Gautier (LOA)'
+
