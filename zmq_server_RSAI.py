@@ -1,6 +1,3 @@
-#!/home/sallejaune/loaenv/bin/python
-# -*- coding: utf-8 -*-
-from PyQt6.QtWidgets import Q
 """
 Serveur RSAI avec ZMQ ROUTER-DEALER
 Version avec les workers
@@ -476,12 +473,12 @@ class SERVERZMQ(QtCore.QThread):
             msgsplit = [msg.strip() for msg in msgsplit]
             if len(msgsplit) > 1:
                 ip = msgsplit[0]
-                axe = int(msgsplit[1])
+                axe =  int(msgsplit[1])
                 cmd = msgsplit[2]
-                numEsim = int(self.listRackIP.index(ip))
+                numEsim =  int(self.listRackIP.index(ip))
                 dict_name = "self.dictMotor" + "_" + str(ip)
                 name = self.dict_moteurs[dict_name][axe]
-                # print("message decode ip axe,cmd,num esim,name:", ip, axe, cmd, numEsim, name)
+               # print("message decode ip axe,cmd,num esim,name:", ip, axe, cmd, numEsim, name)
             else:
                 cmd = msgsplit[0]
             
@@ -523,23 +520,39 @@ class SERVERZMQ(QtCore.QThread):
 
             elif cmd == 'move':
                 regCde = ctypes.c_uint(2)
+                axe = ctypes.c_int(axe)
+                numEsim = ctypes.c_int(numEsim)
                 err = self.PilMot.wCdeMot(numEsim, axe, regCde, value, vit)
                 log_message = ("move", f"{client_id} {name}  → position  {valueStr}")
                 return 'ok\n', log_message
 
             elif cmd == 'rmove':
-                regCde = ctypes.c_uint(4)
+                #regCde = ctypes.c_uint(4)
+                axe = ctypes.c_int(int(axe))
+                numEsim = ctypes.c_int(int(numEsim))
+                pos = self.PilMot.rPositionMot(numEsim, axe)
+                # time.sleep(0.001)
+                #print(f'rome {pos} {value} ')
+                value = int(pos) + int(valueStr)
+                value = ctypes.c_int(int(value))
+                regCde = ctypes.c_uint(2) # on bouge en aboslue 
                 err = self.PilMot.wCdeMot(numEsim, axe, regCde, value, vit)
-                log_message = ("rmove", f"RMOVE - {name} déplacement relatif {valueStr}")
-                return 'ok\n', None
+                #err = self.PilMot.wCdeMot(numEsim, axe, regCde, value, vit)
+                #print(f'rmove Esim: {numEsim} Axe : {axe}' )
+                log_message = ("rmove", f"RMOVE - {name} déplacement relatif {valueStr} Esim: {numEsim} Axe : {axe} cmd : {regCde}")
+                return 'ok\n', log_message
 
             elif cmd == 'stop':
                 regCde = ctypes.c_uint(8)
+                axe = ctypes.c_int(axe)
+                numEsim = ctypes.c_int(numEsim)
                 err = self.PilMot.wCdeMot(numEsim, axe, regCde, 0, 0)
                 log_message = ("Stop",f"{'STOP - '}{name} arrêté ")
                 return 'ok\n', log_message
 
             elif cmd == 'position':
+                axe = ctypes.c_int(axe)
+                numEsim = ctypes.c_int(numEsim)
                 pos = self.PilMot.rPositionMot(numEsim, axe)
                 return str(pos) + '\n', None
 
@@ -576,6 +589,8 @@ class SERVERZMQ(QtCore.QThread):
                 return etat + '\n', None
 
             elif cmd == 'setzero':
+                axe = ctypes.c_int(axe)
+                numEsim = ctypes.c_int(numEsim)
                 regCde = ctypes.c_int(1024)
                 err = self.PilMot.wCdeMot(numEsim, axe, regCde, ctypes.c_int(0), ctypes.c_int(0))
                 log_message =("Set Zero", f"SETZERO - {name} position mise à zéro")
@@ -605,7 +620,7 @@ class SERVERZMQ(QtCore.QThread):
                 try:
                     self.parent.db.setPosRef(ip, axe, nRef, valPos)
                     self.conf.setValue(name + "/ref" + str(nRef - 1) + "Pos", valPos)
-                    log_message = ('Reference', f"SETREF - {name} REF{nRef} position → {valPos}")
+                    log_message = ('Reference', f"SETREF - {name} REF {nRef} position → {valPos}")
                     return 'ok\n', None
                 except Exception as e:
                     #print(f'Error setRefPos: {e}')
@@ -679,7 +694,8 @@ class SERVERZMQ(QtCore.QThread):
                 nbMotRack = self.parent.nbMotorRack
                 return str(nbMotRack) + '\n', None
             elif cmd == 'preset':
-                
+                axe = ctypes.c_int(axe)
+                numEsim = ctypes.c_int(numEsim)
                 regCde = ctypes.c_uint(2048) # preset position 
                 err = self.PilMot.wCdeMot(numEsim ,axe, regCde, value, vit)
                 sendmsg = 'ok'+'\n'

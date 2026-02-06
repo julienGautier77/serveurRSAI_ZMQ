@@ -228,28 +228,28 @@ class DANAMOTOR(MAINMOTOR):
         # JET (Cible)
         self.pourcent += 5
         self.update_progress(self.pourcent, "Création motors JET...")
-        self.cible = THREEMOTORGUI(
+        self.jet = THREEMOTORGUI(
             IPVert='10.0.6.30', NoMotorVert=7, 
             IPLat='10.0.6.30', NoMotorLat=13,
             IPFoc='10.0.6.30', NoMotorFoc=12,
             nomWin='DANA JET', nomTilt='JET1', nomFoc='Jet Foc'
         )
-        self.cible_But = QPushButton('JET')
-        self.cible_But.setIcon(QIcon(self.icon_path + "target.png"))
-        self.cible_But.setIconSize(QSize(20, 20))
-        self.cible_But.clicked.connect(lambda: self.open_widget(self.cible))
-        self.cible_But.setMinimumHeight(40)
+        self.jet_But = QPushButton('JET')
+        self.jet_But.setIcon(QIcon(self.icon_path + "target.png"))
+        self.jet_But.setIconSize(QSize(20, 20))
+        self.jet_But.clicked.connect(lambda: self.open_widget(self.jet))
+        self.jet_But.setMinimumHeight(40)
 
         # CAM (Focal Spot)
         self.pourcent += 15
         self.update_progress(self.pourcent, "Création motors CAM...")
         self.camWidget = THREEMOTORGUI(
-            IPVert='10.0.6.30', NoMotorVert=2, 
-            IPLat='10.0.6.31', NoMotorLat=11,
-            IPFoc='10.0.6.31', NoMotorFoc=12,
+            IPVert='10.0.6.30', NoMotorVert=5, 
+            IPLat='10.0.6.31', NoMotorLat=13,
+            IPFoc='10.0.6.30', NoMotorFoc=9,
             nomWin='Focal Spot DANA', nomTilt='CAM FS', nomFoc=''
         )
-        self.cam_But = QPushButton('📷 CAM')
+        self.cam_But = QPushButton('📷 FSpot')
         self.cam_But.clicked.connect(lambda: self.open_widget(self.camWidget))
         self.cam_But.setMinimumHeight(40)
 
@@ -284,8 +284,8 @@ class DANAMOTOR(MAINMOTOR):
         self.pourcent += 5
         self.update_progress(self.pourcent, "Création  Mirrors P1 ...")
         self.P1M = TILTMOTORGUI(
-            IPLat="10.0.6.31", NoMotorLat=6,
-            IPVert="10.0.6.31", NoMotorVert=5,
+            IPLat="10.0.6.30", NoMotorLat=11,
+            IPVert="10.0.6.30", NoMotorVert=3,
             nomWin='P1 Mirror', background=''
         )
         self.P1Mir_But = QPushButton('🪞 P1 Mir')
@@ -320,6 +320,26 @@ class DANAMOTOR(MAINMOTOR):
         self.P1OAP_But.clicked.connect(lambda: self.open_widget(self.P1OPA))
         self.P1OAP_But.setMinimumHeight(40)
 
+        self.cible = THREEMOTORGUI(
+            IPVert='10.0.6.30', NoMotorVert=10, 
+            IPLat='10.0.6.31', NoMotorLat=5,
+            IPFoc='10.0.6.30', NoMotorFoc=1,
+            nomWin='Porte Lame', nomTilt='Lame', nomFoc='Foc Lame'
+        )
+        self.cible_But = QPushButton('Lame')
+        self.cible_But.clicked.connect(lambda: self.open_widget(self.cible))
+        self.cible_But.setMinimumHeight(40)
+
+        self.periscope = THREEMOTORGUI(
+            IPVert='10.0.6.31', NoMotorVert=6, 
+            IPLat='10.0.6.31', NoMotorLat=12,
+            IPFoc='10.0.6.30', NoMotorFoc=2,
+            nomWin='Periscope', nomTilt='Periscope', nomFoc='Foc periscope'
+        )
+        self.periscope_But = QPushButton('Pscope')
+        self.periscope_But.clicked.connect(lambda: self.open_widget(self.periscope))
+        self.periscope_But.setMinimumHeight(40)
+
         # Disposition en grille 3x3
         grid_layout.addWidget(self.P1TB_But, 0, 0)
         grid_layout.addWidget(self.P2TB_But, 0, 1)
@@ -328,8 +348,10 @@ class DANAMOTOR(MAINMOTOR):
         grid_layout.addWidget(self.P2Mir_But, 1, 1)
         grid_layout.addWidget(self.P3Mir_But, 1, 2)
         grid_layout.addWidget(self.P1OAP_But, 2, 0)
-        grid_layout.addWidget(self.cible_But, 2, 1)
+        grid_layout.addWidget(self.jet_But, 2, 1)
         grid_layout.addWidget(self.cam_But, 2, 2)
+        grid_layout.addWidget(self.cible_But, 3, 0)
+        grid_layout.addWidget(self.periscope_But, 3, 1)
         
         # Insérer la grille dans le layout principal
         main_layout.insertLayout(1, grid_layout)

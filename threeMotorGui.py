@@ -279,19 +279,19 @@ class THREEMOTORGUI(QWidget):
     def setup(self):
         mainLayout = QVBoxLayout()
         mainLayout.setSpacing(5)
-        mainLayout.setContentsMargins(10, 5, 5, 10)
+        mainLayout.setContentsMargins(10, 5, 5, 5)
         
         # ========== TITRE ==========
-        headerGroup = QGroupBox()
-        headerGroup.setStyleSheet("""
-            QGroupBox {
-                border: 2px solid #555;
-                border-radius: 5px;
-                margin-top: 5px;
-                padding-top: 8px;
-                background-color: #2d2d2d;
-            }
-        """)
+        # headerGroup = QGroupBox()
+        # headerGroup.setStyleSheet("""
+        #     QGroupBox {
+        #         border: 2px solid #555;
+        #         border-radius: 5px;
+        #         margin-top: 5px;
+        #         padding-top: 8px;
+        #         background-color: #2d2d2d;
+        #     }
+        # """)
         # headerGroup.setMaximumHeight(70)
         
         # hboxTitre = QHBoxLayout()
@@ -306,14 +306,14 @@ class THREEMOTORGUI(QWidget):
         # mainLayout.addWidget(headerGroup)
         
         # ========== MOTEURS LATÉRAL ET VERTICAL ==========
-        motorsGroup = QGroupBox(f"Lateral & Vertical  {self.nomTilt} Control")
+        motorsGroup = QGroupBox(f"  {self.nomTilt} Control")
         motorsGroup.setStyleSheet("""
             QGroupBox {
-                font: bold 14pt;
+                font: bold 20pt;
                 color: #4a9eff;
                 border: 2px solid #555;
                 border-radius: 5px;
-                margin-top: 10px;
+                margin-top: 20px;
                 padding-top: 10px;
             }
             QGroupBox::title {
@@ -325,7 +325,7 @@ class THREEMOTORGUI(QWidget):
         motorsGroup.setMaximumHeight(260)
         
         motorsMainLayout = QVBoxLayout()
-        motorsMainLayout.setSpacing(8)
+        motorsMainLayout.setSpacing(5)
         
         # Ligne unité et butées
         unitButeeLayout = QHBoxLayout()
@@ -369,9 +369,9 @@ class THREEMOTORGUI(QWidget):
         # Latéral
         hLatBox = QHBoxLayout()
         self.posLat = QPushButton('Lateral')
-        self.posLat.setStyleSheet("font: bold 10pt; padding: 5px;")
-        self.posLat.setMaximumHeight(30)
-        self.posLat.setMaximumWidth(80)
+        self.posLat.setStyleSheet("font: bold 12pt; padding: 5px;")
+        self.posLat.setMaximumHeight(40)
+        self.posLat.setMaximumWidth(90)
         
         self.position_Lat = QLabel('0.00')
         self.position_Lat.setStyleSheet("""
@@ -415,9 +415,9 @@ class THREEMOTORGUI(QWidget):
         # Vertical
         hVertBox = QHBoxLayout()
         self.posVert = QPushButton('Vertical')
-        self.posVert.setStyleSheet("font: bold 10pt; padding: 5px;")
-        self.posVert.setMaximumHeight(30)
-        self.posVert.setMaximumWidth(80)
+        self.posVert.setStyleSheet("font: bold 12pt; padding: 5px;")
+        self.posVert.setMaximumHeight(40)
+        self.posVert.setMaximumWidth(90)
         
         self.position_Vert = QLabel('0.00')
         self.position_Vert.setStyleSheet("""
@@ -498,7 +498,7 @@ class THREEMOTORGUI(QWidget):
         self.droite.setAutoRepeat(False)
         
         self.jogStep = QDoubleSpinBox()
-        self.jogStep.setMaximum(10000)
+        self.jogStep.setMaximum(200000)
         self.jogStep.setDecimals(2)
         self.jogStep.setStyleSheet("font: bold 10pt; padding: 5px;")
         self.jogStep.setValue(100)
@@ -525,7 +525,7 @@ class THREEMOTORGUI(QWidget):
                 border: 2px solid #555;
                 border-radius: 5px;
                 margin-top: 5px;
-                padding-top: 3px;
+                padding-top: 5px;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
@@ -603,7 +603,7 @@ class THREEMOTORGUI(QWidget):
         self.moins.setAutoRepeat(True)
         
         self.jogStep_2 = QDoubleSpinBox()
-        self.jogStep_2.setMaximum(10000)
+        self.jogStep_2.setMaximum(200000)
         self.jogStep_2.setDecimals(2)
         self.jogStep_2.setStyleSheet("font: bold 10pt; padding: 5px;")
         self.jogStep_2.setValue(self.jogValueFoc)
@@ -634,7 +634,7 @@ class THREEMOTORGUI(QWidget):
                 color: #aaaaaa;
                 border: 2px solid #555;
                 border-radius: 5px;
-                margin-top: 10px;
+                margin-top: 5px;
                 padding-top: 10px;
             }
             QGroupBox::title {
