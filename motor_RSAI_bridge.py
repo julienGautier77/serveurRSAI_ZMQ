@@ -3,7 +3,6 @@ import logging
 import pathlib
 import threading
 import queue
-from configparser import ConfigParser
 
 from laplace_server.server_lhc import ServerLHC
 from laplace_server.protocol import DEVICE_MOTOR, make_set_reply
@@ -14,6 +13,17 @@ p = pathlib.Path(__file__)
 l = LoggerLHC("test_bridge", log_root=str(p.parent / "tests"))
 logging.getLogger("laplace.server").setLevel(logging.DEBUG)
 print(f"test logs available in {l.log_root}")
+
+
+
+def um_to_steps(value_um, um_per_steps):
+    if value_um is None:
+        return None
+    return int(value_um / um_per_steps)
+
+
+def steps_to_um(value_steps, um_per_steps):
+    return value_steps * um_per_steps
 
 
 def make_payload(values: list, unit: str):
@@ -47,13 +57,9 @@ class MotorRSAIBridge:
             empty_data_after_get=empty_data_after_get
         )
 
-        p = pathlib.Path(__file__)
-        self.config = ConfigParser()
-        self.config.read(str(p.parent / "confServer.ini"))
-
         self.rack_ip = rack_ip
         self.motor_indices = motor_indices
-        self.unit = "step"
+        self.unit = "um"
 
         # Create one MOTORRSAI per motor
         self.motors = [
@@ -65,6 +71,12 @@ class MotorRSAIBridge:
         for motor in self.motors:
             motor.waitForConnection(timeout=10)
         
+        self.um_to_step_values = [
+            float(m.getStepValue())
+            for m in self.motors
+        ]
+        print(f"self.um_to_step_values = {self.um_to_step_values}")
+
         # fix initial positions
         self.motors[0].move(100)
         self.motors[1].move(200)
@@ -78,16 +90,6 @@ class MotorRSAIBridge:
             daemon=True
         )
         self.worker.start()
-
-        
-        values = [None, None, None]
-        for i, motor in enumerate(self.motors):
-            values[i] = motor.position()
-
-        payload = make_payload(values, self.unit)
-        print(f"initial payload = {payload}")
-
-        self.server_lhc.set_data(payload)
 
         # Register callbacks
         self.server_lhc.set_on_position_changed(self._on_position_changed)
@@ -120,22 +122,29 @@ class MotorRSAIBridge:
 
     def _handle_move(self, positions):
 
-        final = [None] * len(self.motors)
+        final_um = [None] * len(self.motors)
 
-        for i, value in enumerate(positions):
+        for i, value in enumerate(positions):  # positions are in um
             if value is None:
                 continue
+            
+            value_steps = um_to_steps(value, self.um_to_step_values[i])
+            self.motors[i].move(value_steps)
+            pos_steps = self.motors[i].position()
+            final_um[i] = steps_to_um(pos_steps, self.um_to_step_values[i])
 
-            self.motors[i].move(value)
-            final[i] = self.motors[i].position()
+        self.server_lhc.set_data(make_payload(final_um, self.unit))
 
-        self.server_lhc.set_data(make_payload(final, self.unit))
 
     def _publish_positions(self):
         try:
-            values = [m.position() for m in self.motors]
-            self.server_lhc.set_data(make_payload(values, self.unit))
+            values_um = [None] * len(self.motors)
+            for i, motor in enumerate(self.motors):
+                pos_steps = motor.position()
+                values_um[i] = steps_to_um(pos_steps, self.um_to_step_values[i])
+            self.server_lhc.set_data(make_payload(values_um, "um"))
         except Exception:
+            self.server_lhc.set_data(make_payload(values_um, "um"))
             pass
 
 
