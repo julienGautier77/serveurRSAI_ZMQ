@@ -41,12 +41,13 @@ class WorkerSignals(QObject):
 class SERVERRSAI(QWidget):
     signalServer = pyqtSignal(object)
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, test=False):
         super(SERVERRSAI, self).__init__(parent)
 
         self.setStyleSheet(qdarkstyle.load_stylesheet(qt_api='pyqt6'))
         self.hostname = _socket.gethostname()
         self.iphost = _socket.gethostbyname(self.hostname)
+        self.test = test
 
         # log 
         self.actionLog = deque(maxlen=30)
@@ -237,6 +238,8 @@ class SERVERRSAI(QWidget):
         try:
             self.PilMot = ctypes.windll.LoadLibrary(dll_file)
             self.addLog('SYSTEM', ' Using PilMotTango.dll')
+            if self.test:
+                raise Exception("test mode")
         except Exception as e:
             self.addLog('ERROR', ' Error import PilMotTango.dll')
             import dummyPilMotTango_dll
@@ -912,6 +915,6 @@ if __name__ == "__main__":
     import sys
     from PyQt6.QtWidgets import QApplication
     app = QApplication(sys.argv)
-    server = SERVERRSAI()
+    server = SERVERRSAI(test=True)
     server.show()
     sys.exit(app.exec())
