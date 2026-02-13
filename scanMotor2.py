@@ -1,157 +1,454 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Mon Apr 22 20:23:31 2019
+Widget de scan moteur synchronisé avec le serveur de tir ZMQ.
+Style modernisé cohérent avec oneMotorGui.
 
 @author: juliengautier
 """
 
 from PyQt6 import QtCore
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtWidgets import QWidget, QMessageBox
-from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QPushButton, QGridLayout, QDoubleSpinBox, QProgressBar
-from PyQt6.QtWidgets import QComboBox, QLabel
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QApplication, QWidget, QMessageBox, QCheckBox
+from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QPushButton, QGridLayout
+from PyQt6.QtWidgets import QDoubleSpinBox, QProgressBar, QComboBox, QLabel, QLineEdit
+from PyQt6.QtWidgets import QGroupBox, QToolButton
 from PyQt6.QtGui import QIcon
-import tirSalleJaune as tirSJ
 import sys
 import time
 import qdarkstyle
 import numpy as np
-from PyQt6.QtCore import pyqtSignal as Signal
-import socket as _socket
+import pathlib
+import os
 
-# #### To be modified and tested
+try:
+    import zmq
+    ZMQ_AVAILABLE = True
+except ImportError:
+    print("ZMQ non disponible - pip install pyzmq")
+    ZMQ_AVAILABLE = False
+
+import tirSalleJaune as tirSJ
+
+
+class TirSalleJauneDummy:
+    """
+    Classe dummy pour simuler tirSalleJaune en mode test.
+    """
+    
+    def __init__(self):
+        self.isConnected = False
+        print("[DUMMY] TirSalleJaune DUMMY initialisé")
+    
+    def tirConnect(self):
+        print("[DUMMY] Connexion laser simulée")
+        self.isConnected = True
+        return True
+    
+    def disconnect(self):
+        print("[DUMMY] Déconnexion simulée")
+        self.isConnected = False
+        return False
+    
+    def Tir(self):
+        print("[DUMMY] Tir unique simulé")
+        time.sleep(0.1)
+        return True
+    
+    def multi_shot(self, freq, nb_tir):
+        freq_map = {0: 0.1, 1: 0.2, 2: 0.5, 3: 1.0}
+        freq_hz = freq_map.get(freq, 0.1)
+        print(f"[DUMMY] Multi-shot: {nb_tir} tirs @ {freq_hz} Hz")
+        return True
+    
+    def stopTir(self):
+        print("[DUMMY] Stop tir simulé")
+
+
+# Style commun pour les GroupBox
+GROUPBOX_STYLE = """
+    QGroupBox {
+        font: bold 10pt;
+        color: #aaaaaa;
+        border: 2px solid #555;
+        border-radius: 5px;
+        margin-top: 8px;
+        padding-top: 8px;
+    }
+    QGroupBox::title {
+        subcontrol-origin: margin;
+        left: 10px;
+        padding: 0 5px 0 5px;
+    }
+"""
+
+GROUPBOX_STYLE_TITLE = """
+    QGroupBox {
+        font: bold 14pt;
+        color: #4a9eff;
+        border: 2px solid #555;
+        border-radius: 5px;
+        margin-top: 8px;
+        padding-top: 8px;
+    }
+    QGroupBox::title {
+        subcontrol-origin: margin;
+        left: 10px;
+        padding: 0 5px 0 5px;
+    }
+"""
 
 
 class SCAN(QWidget):
-    """ scan widget
-    MOT= motor object
     """
+    Widget de scan moteur synchronisé avec serveur de tir.
+    """
+    
     def __init__(self, MOT, parent=None):
-        
         super(SCAN, self).__init__(parent)
         
         self.isWinOpen = False
         self.parent = parent
         self.setStyleSheet(qdarkstyle.load_stylesheet(qt_api='pyqt6'))
         self.MOT = MOT
-
         self.indexUnit = 1
+        
+        # Configuration
+        self.p = pathlib.Path(__file__)
+        sepa = os.sep
+        self.icon = str(self.p.parent) + sepa + 'icons' + sepa
+        
+        # Icons
+        self.iconPlay = pathlib.PurePosixPath(pathlib.Path(self.icon + "playGreen.png"))
+        self.iconStop = pathlib.PurePosixPath(pathlib.Path(self.icon + "close.png"))
+        
+        # Lecture configuration serveur
+        self.configPath = str(self.p.parent) + sepa + 'confServer.ini'
+        self.conf = QtCore.QSettings(self.configPath, QtCore.QSettings.Format.IniFormat)
+        
+        self.server_ip = self.conf.value('SHOTSERVER/server_host', '127.0.0.1')
+        self.sub_port = int(self.conf.value('SHOTSERVER/serverPort', 5009))
+        
+        # Mode dummy
+        dummyValue = self.conf.value('SHOTSERVER/modedummy', 'False')
+        self.dummyMode = str(dummyValue).lower() in ('true', '1', 'yes')
+        
+        # Connexion ZMQ
+        self.context = None
+        self.sub_socket = None
+        self.zmq_connected = False
+        
+        # Classe dummy
+        self.tirDummy = TirSalleJauneDummy()
+        
         try:
             self.name = self.MOT.name
-            self.stepmotor = 1/self.MOT.getStepValue()
-            self.setWindowTitle('Scan  : ' + str(self.MOT.getEquipementName()) + ' (' + str(self.MOT.IpAddress) + ')  ' + ' [M'+ str(self.MOT.NoMotor) + ']  ' + self.MOT.name)
+            self.stepmotor = 1 / self.MOT.getStepValue()
+            self.setWindowTitle(
+                f'Scan : {self.MOT.getEquipementName()} ({self.MOT.IpAddress}) '
+                f'[M{self.MOT.NoMotor}] {self.MOT.name}'
+            )
         except Exception as e:
-            print('error in scan ', e)
+            print(f'Erreur initialisation scan: {e}')
+            self.name = "Unknown"
+            self.stepmotor = 1
 
         self.setup()
         self.actionButton()
         self.unit()
+        
+        # Thread de scan
         self.threadScan = ThreadScan(self)
-        self.threadScan.nbRemain.connect(self.Remain)
-        self.threadScan.info.connect(self.infoWrite)
-        self.setWindowIcon(QIcon('./icons/LOA.png'))
-        self.threadShoot = ThreadShoot(self)
-        self.threadShoot.nbRemainShoot.connect(self.RemainShoot)
+        self.threadScan.nbRemain.connect(self.updateProgress)
+        self.threadScan.info.connect(self.updateInfo)
+        self.threadScan.finished.connect(self.onScanFinished)
+        
+        self.setWindowIcon(QIcon(self.icon + 'LOA.png'))
 
-    def startTrigThread(self):
-        self.threadScan.trigClient.start()
+    def getTirModule(self):
+        if self.dummyMode:
+            return self.tirDummy
+        return tirSJ
+
+    def connect_zmq(self):
+        if not ZMQ_AVAILABLE:
+            self.updateConnectionStatus(False, "ZMQ non disponible")
+            return False
+        
+        try:
+            self.context = zmq.Context()
+            self.sub_socket = self.context.socket(zmq.SUB)
+            self.sub_socket.connect(f"tcp://{self.server_ip}:{self.sub_port}")
+            self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, "SHOOT")
+            self.sub_socket.setsockopt(zmq.RCVTIMEO, 1000)
+            
+            self.zmq_connected = True
+            self.updateConnectionStatus(True, f"{self.server_ip}:{self.sub_port}")
+            print(f"ZMQ connecté à {self.server_ip}:{self.sub_port}")
+            return True
+            
+        except Exception as e:
+            self.updateConnectionStatus(False, f"Erreur: {e}")
+            print(f"Erreur connexion ZMQ: {e}")
+            self.zmq_connected = False
+            return False
+
+    def disconnect_zmq(self):
+        if self.sub_socket:
+            try:
+                self.sub_socket.close()
+            except:
+                pass
+            self.sub_socket = None
+        
+        if self.context:
+            try:
+                self.context.term()
+            except:
+                pass
+            self.context = None
+        
+        self.zmq_connected = False
+        self.updateConnectionStatus(False, "Déconnecté")
+        print("ZMQ déconnecté")
+
+    def updateConnectionStatus(self, connected, message=""):
+        if connected:
+            self.connectionStatus.setText("● Connecté")
+            self.connectionStatus.setStyleSheet("color: #00ff00; font: bold 9pt;")
+        else:
+            self.connectionStatus.setText("● Déconnecté")
+            self.connectionStatus.setStyleSheet("color: #ff6b6b; font: bold 9pt;")
+        
+        if message:
+            self.connectionInfo.setText(message)
 
     def setup(self):
-        self.vbox = QVBoxLayout()
-        hboxTitre = QHBoxLayout()
-        self.nom = QLabel(self.name)
-        self.nom.setStyleSheet("font: bold 30pt")
-        hboxTitre.addWidget(self.nom)
-        self.vbox.addLayout(hboxTitre)
+        mainLayout = QVBoxLayout()
+        mainLayout.setSpacing(6)
+        mainLayout.setContentsMargins(8, 8, 8, 8)
         
+        # ========== TITRE ==========
+        titleGroup = QGroupBox(f"Scan - {self.name}")
+        titleGroup.setStyleSheet(GROUPBOX_STYLE_TITLE)
+        titleGroup.setMaximumHeight(80)
+        
+        titleLayout = QHBoxLayout()
+        titleLayout.setSpacing(10)
+        
+        # Unité
         self.unitBouton = QComboBox()
-        self.unitBouton.addItem('Step')
-        self.unitBouton.addItem('um')
-        self.unitBouton.addItem('mm')
-        self.unitBouton.addItem('ps')
-        self.unitBouton.addItem('°')
-        self.unitBouton.setMaximumWidth(100)
-        self.unitBouton.setMinimumWidth(100)
+        self.unitBouton.addItems(['Step', 'µm', 'mm', 'ps', '°'])
         self.unitBouton.setCurrentIndex(self.indexUnit)
+        self.unitBouton.setStyleSheet("font: 9pt; padding: 3px;")
+        self.unitBouton.setMaximumWidth(70)
         
-        hboxTitre.addWidget(self.unitBouton)
+        titleLayout.addWidget(QLabel("Unité:"))
+        titleLayout.addWidget(self.unitBouton)
+        titleLayout.addStretch()
         
-        lab_nbStepRemain = QLabel('Remaining step')
-        self.val_nbStepRemain = QLabel(self)
+        # Mode dummy
+        self.dummyCheckbox = QCheckBox("Mode Dummy")
+        self.dummyCheckbox.setChecked(self.dummyMode)
+        self.dummyCheckbox.setStyleSheet("color: orange; font: 9pt;")
+        titleLayout.addWidget(self.dummyCheckbox)
         
-        hboxTitre.addWidget(lab_nbStepRemain)
-        hboxTitre.addWidget(self.val_nbStepRemain)
-
+        titleGroup.setLayout(titleLayout)
+        mainLayout.addWidget(titleGroup)
+        
+        # ========== CONNEXION SERVEUR ==========
+        serverGroup = QGroupBox("Shot Server")
+        serverGroup.setStyleSheet(GROUPBOX_STYLE)
+        serverGroup.setMaximumHeight(100)
+        
+        serverLayout = QVBoxLayout()
+        serverLayout.setSpacing(5)
+        
+        # Ligne 1: IP et Port
+        serverRow1 = QHBoxLayout()
+        serverRow1.addWidget(QLabel("IP:"))
+        self.serverIpEdit = QLineEdit(self.server_ip)
+        self.serverIpEdit.setMaximumWidth(120)
+        self.serverIpEdit.setStyleSheet("padding: 3px;")
+        serverRow1.addWidget(self.serverIpEdit)
+        
+        serverRow1.addWidget(QLabel("Port:"))
+        self.serverPortEdit = QLineEdit(str(self.sub_port))
+        self.serverPortEdit.setMaximumWidth(60)
+        self.serverPortEdit.setStyleSheet("padding: 3px;")
+        serverRow1.addWidget(self.serverPortEdit)
+        
+        self.but_reconnect = QPushButton("Reconnecter")
+        self.but_reconnect.setMaximumWidth(100)
+        self.but_reconnect.setStyleSheet("padding: 5px;")
+        serverRow1.addWidget(self.but_reconnect)
+        
+        serverRow1.addStretch()
+        serverLayout.addLayout(serverRow1)
+        
+        # Ligne 2: Status
+        serverRow2 = QHBoxLayout()
+        self.connectionStatus = QLabel("● Déconnecté")
+        self.connectionStatus.setStyleSheet("color: #ff6b6b; font: bold 9pt;")
+        serverRow2.addWidget(self.connectionStatus)
+        
+        self.connectionInfo = QLabel("")
+        self.connectionInfo.setStyleSheet("color: #888; font: 9pt;")
+        serverRow2.addWidget(self.connectionInfo)
+        serverRow2.addStretch()
+        serverLayout.addLayout(serverRow2)
+        
+        serverGroup.setLayout(serverLayout)
+        mainLayout.addWidget(serverGroup)
+        
+        # ========== PROGRESSION ==========
+        progressGroup = QGroupBox("Progression")
+        progressGroup.setStyleSheet(GROUPBOX_STYLE)
+        progressGroup.setMaximumHeight(90)
+        
+        progressLayout = QVBoxLayout()
+        progressLayout.setSpacing(5)
+        
+        # Barre de progression
+        progressRow1 = QHBoxLayout()
+        self.val_nbStepRemain = QLabel('--')
+        self.val_nbStepRemain.setStyleSheet("font: bold 11pt; color: #4a9eff;")
+        self.val_nbStepRemain.setMinimumWidth(50)
+        progressRow1.addWidget(self.val_nbStepRemain)
+        
         self.progressBar = QProgressBar()
-        hboxTitre.addWidget(self.progressBar)
-        hboxTitre.addSpacing(100)
-        self.infoText = QLabel('...')
-        hboxTitre.addWidget(self.infoText)
-        self.lab_nbr_step = QLabel('nb of step')
-        self.val_nbr_step = QDoubleSpinBox(self)
+        self.progressBar.setMinimumWidth(200)
+        self.progressBar.setStyleSheet("""
+            QProgressBar {
+                border: 2px solid #555;
+                border-radius: 5px;
+                text-align: center;
+                background-color: #1e1e1e;
+            }
+            QProgressBar::chunk {
+                background-color: #4a9eff;
+                border-radius: 3px;
+            }
+        """)
+        progressRow1.addWidget(self.progressBar)
+        progressLayout.addLayout(progressRow1)
         
+        # Info texte
+        self.infoText = QLabel('Prêt')
+        self.infoText.setStyleSheet("color: #888; font: 9pt;")
+        self.infoText.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        progressLayout.addWidget(self.infoText)
+        
+        progressGroup.setLayout(progressLayout)
+        mainLayout.addWidget(progressGroup)
+        
+        # ========== PARAMÈTRES SCAN ==========
+        scanGroup = QGroupBox("Paramètres Scan")
+        scanGroup.setStyleSheet(GROUPBOX_STYLE)
+        
+        scanLayout = QGridLayout()
+        scanLayout.setSpacing(8)
+        scanLayout.setContentsMargins(10, 15, 10, 10)
+        
+        # Ligne 1: Positions
+        scanLayout.addWidget(QLabel("Nb positions:"), 0, 0)
+        self.val_nbr_step = QDoubleSpinBox()
         self.val_nbr_step.setMaximum(10000)
         self.val_nbr_step.setMinimum(1)
-        self.val_nbr_step.setValue = 10
+        self.val_nbr_step.setDecimals(0)
+        self.val_nbr_step.setValue(10)
+        self.val_nbr_step.setStyleSheet("padding: 5px;")
+        scanLayout.addWidget(self.val_nbr_step, 0, 1)
         
-        self.lab_step = QLabel("step value")
+        scanLayout.addWidget(QLabel("Pas:"), 0, 2)
         self.val_step = QDoubleSpinBox()
-        self.val_step.setMaximum(10000)
-        self.val_step.setMinimum(-10000)
-        self.lab_ini = QLabel('ini value')
+        self.val_step.setMaximum(100000)
+        self.val_step.setMinimum(-100000)
+        self.val_step.setDecimals(3)
+        self.val_step.setStyleSheet("padding: 5px;")
+        scanLayout.addWidget(self.val_step, 0, 3)
+        
+        # Ligne 2: Position initiale et finale
+        scanLayout.addWidget(QLabel("Position ini:"), 1, 0)
         self.val_ini = QDoubleSpinBox()
-        self.val_ini.setMaximum(10000)
-        self.val_ini.setMinimum(-10000)
+        self.val_ini.setMaximum(100000)
+        self.val_ini.setMinimum(-100000)
+        self.val_ini.setDecimals(3)
+        self.val_ini.setStyleSheet("padding: 5px;")
+        scanLayout.addWidget(self.val_ini, 1, 1)
         
-        self.lab_fin = QLabel('Final value')
+        scanLayout.addWidget(QLabel("Position fin:"), 1, 2)
         self.val_fin = QDoubleSpinBox()
-        self.val_fin.setMaximum(10000)
-        self.val_fin.setMinimum(-10000)
+        self.val_fin.setMaximum(100000)
+        self.val_fin.setMinimum(-100000)
+        self.val_fin.setDecimals(3)
         self.val_fin.setValue(100)
+        self.val_fin.setStyleSheet("padding: 5px;")
+        scanLayout.addWidget(self.val_fin, 1, 3)
         
-        self.lab_nbTir = QLabel('Nb of shoot')
+        # Ligne 3: Tirs
+        scanLayout.addWidget(QLabel("Tirs/position:"), 2, 0)
         self.val_nbTir = QDoubleSpinBox()
-        self.val_nbTir.setMaximum(100)
+        self.val_nbTir.setMaximum(1000)
+        self.val_nbTir.setMinimum(1)
+        self.val_nbTir.setDecimals(0)
         self.val_nbTir.setValue(1)
-        self.val_nbShoot = self.val_nbTir.value()
-        self.lab_time = QLabel('Frequence')
-        self.val_time = QDoubleSpinBox()
-        self.val_time.setMaximum(1)
-        self.val_time.setSuffix(" %s" % 'Hz')
-        self.val_time.setValue(0.1)
-        #self.val_time.setDecimals(1)
+        self.val_nbTir.setStyleSheet("padding: 5px;")
+        scanLayout.addWidget(self.val_nbTir, 2, 1)
         
-        self.but_start = QPushButton('Start sequence')
-        self.but_stop = QPushButton('STOP')
-        self.but_stop.setStyleSheet("border-radius:20px;background-color: red")
+        scanLayout.addWidget(QLabel("Fréquence:"), 2, 2)
+        self.val_freq = QComboBox()
+        self.val_freq.addItems(['0.1 Hz', '0.2 Hz', '0.5 Hz', '1 Hz'])
+        self.val_freq.setCurrentIndex(0)
+        self.val_freq.setStyleSheet("padding: 5px;")
+        scanLayout.addWidget(self.val_freq, 2, 3)
+        
+        scanGroup.setLayout(scanLayout)
+        mainLayout.addWidget(scanGroup)
+        
+        # ========== CONTRÔLES ==========
+        controlGroup = QGroupBox("Contrôles")
+        controlGroup.setStyleSheet(GROUPBOX_STYLE)
+        controlGroup.setMaximumHeight(100)
+        
+        controlLayout = QHBoxLayout()
+        controlLayout.setSpacing(15)
+        controlLayout.setContentsMargins(10, 15, 10, 10)
+        
+        # Bouton Start
+        self.but_start = QToolButton()
+        self.but_start.setStyleSheet(
+            f"QToolButton:!pressed{{border-image: url({self.iconPlay});background-color: transparent;}}"
+            f"QToolButton:pressed{{image: url({self.iconPlay});background-color: gray;}}"
+        )
+        self.but_start.setMinimumSize(60, 60)
+        self.but_start.setMaximumSize(60, 60)
+        self.but_start.setToolTip('Démarrer le scan')
+        
+        # Bouton Stop
+        self.but_stop = QToolButton()
+        self.but_stop.setStyleSheet(
+            f"QToolButton:!pressed{{border-image: url({self.iconStop});background-color: transparent;}}"
+            f"QToolButton:pressed{{image: url({self.iconStop});background-color: gray;}}"
+        )
+        self.but_stop.setMinimumSize(60, 60)
+        self.but_stop.setMaximumSize(60, 60)
+        self.but_stop.setToolTip('Arrêter le scan')
         self.but_stop.setEnabled(False)
         
-        self.but_Shoot = QPushButton('Shoot')
+        controlLayout.addStretch()
+        controlLayout.addWidget(self.but_start)
+        controlLayout.addWidget(self.but_stop)
+        controlLayout.addStretch()
         
-        grid_layout = QGridLayout()
-        grid_layout.addWidget(self.lab_nbr_step  , 0, 0)
-        grid_layout.addWidget(self.val_nbr_step  , 0, 1)
-        grid_layout.addWidget(self.lab_step  , 0, 2)
-        grid_layout.addWidget(self.val_step  , 0, 3)
-        grid_layout.addWidget(self.but_start,0,4)
-        grid_layout.addWidget(self.lab_ini,1,0)
-        grid_layout.addWidget(self.val_ini,1,1)
-        grid_layout.addWidget(self.lab_fin,1,2)
-        grid_layout.addWidget(self.val_fin,1,3)
-        grid_layout.addWidget(self.but_stop,1,4)
-        grid_layout.addWidget(self.lab_nbTir,2,0)
-        grid_layout.addWidget(self.val_nbTir,2,1)
-        grid_layout.addWidget(self.lab_time,2,2)
-        grid_layout.addWidget(self.val_time,2,3)
-        grid_layout.addWidget(self.but_Shoot,2,4)
-        self.vbox.addLayout(grid_layout)
-        self.setLayout(self.vbox)
- 
+        controlGroup.setLayout(controlLayout)
+        mainLayout.addWidget(controlGroup)
+        
+        mainLayout.addStretch()
+        self.setLayout(mainLayout)
+        self.setFixedWidth(450)
+
     def actionButton(self):
-        '''
-           buttons action setup 
-        '''
         self.unitBouton.currentIndexChanged.connect(self.unit)
         self.val_nbr_step.editingFinished.connect(self.stepChange)
         self.val_ini.editingFinished.connect(self.stepChange)
@@ -159,427 +456,319 @@ class SCAN(QWidget):
         self.val_step.editingFinished.connect(self.changeFinal)
         self.but_start.clicked.connect(self.startScan)
         self.but_stop.clicked.connect(self.stopScan)
-        self.but_Shoot.clicked.connect(self.startShoot)
+        self.but_reconnect.clicked.connect(self.reconnect)
+        self.dummyCheckbox.stateChanged.connect(self.toggleDummyMode)
 
-    def infoWrite(self,txt):
+    def toggleDummyMode(self, state):
+        self.dummyMode = (state == 2)
+        self.conf.setValue('SHOTSERVER/modedummy', str(self.dummyMode))
+        
+        if self.dummyMode:
+            self.dummyCheckbox.setStyleSheet("color: orange; font: bold 9pt;")
+            print("Mode DUMMY activé")
+        else:
+            self.dummyCheckbox.setStyleSheet("color: gray; font: 9pt;")
+            print("Mode RÉEL activé")
+
+    def reconnect(self):
+        self.disconnect_zmq()
+        self.server_ip = self.serverIpEdit.text()
+        self.sub_port = int(self.serverPortEdit.text())
+        
+        self.conf.setValue('SHOTSERVER/server_host', self.server_ip)
+        self.conf.setValue('SHOTSERVER/serverPort', self.sub_port)
+        
+        self.connect_zmq()
+
+    def updateInfo(self, txt):
         self.infoText.setText(txt)
 
-    def startShoot(self):
+    def updateProgress(self, remaining, total):
+        self.val_nbStepRemain.setText(str(remaining))
+        self.progressBar.setMaximum(total)
+        self.progressBar.setValue(total - remaining)
 
-        self.stepChange()
-        self.threadShoot.start()
-        self.lab_nbr_step.setEnabled(False)
-        self.val_nbr_step.setEnabled(False)
-        self.lab_step.setEnabled(False)
-        self.lab_ini.setEnabled(False)
-        self.val_step.setEnabled(False)
-        self.val_ini.setEnabled(False)
-        self.lab_fin.setEnabled(False)
-        self.val_fin.setEnabled(False)
-        self.lab_nbTir.setEnabled(False)
-        self.val_nbTir.setEnabled(False)
-        self.lab_time.setEnabled(False)
-        self.val_time.setEnabled(False)
-        self.but_start.setEnabled(False)
-        self.but_Shoot.setEnabled(False)
-        self.but_stop.setEnabled(True)
-        self.but_stop.setStyleSheet("border-radius:20px;background-color: red")
-        a = tirSJ.Tir()
-        print(a)
-        
-        if a == 0 or a == "":
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Icon.Critical)
-            msg.setText("Not connected !")
-            msg.setInformativeText("Please connect !!")
-            msg.setWindowTitle("Warning ...")
-            msg.setWindowFlags(QtCore.Qt.WindowType.WindowStaysOnTopHint)
-            msg.exec()
-       
+    def onScanFinished(self):
+        self.stopScan()
+        self.val_nbStepRemain.setText('Terminé')
+        self.infoText.setStyleSheet("color: #00ff00; font: bold 9pt;")
+
     def stopScan(self):
-        
-        self.threadScan.stopThread()
-        self.threadShoot.stopThread()
+        self.threadScan.stop = True
         self.MOT.stopMotor()
-        self.lab_nbr_step.setEnabled(True)
-        self.val_nbr_step.setEnabled(True)
-        self.lab_step.setEnabled(True)
-        self.lab_ini.setEnabled(True)
-        self.val_step.setEnabled(True)
-        self.val_ini.setEnabled(True)
-        self.lab_fin.setEnabled(True)
-        self.val_fin.setEnabled(True)
-        self.lab_nbTir.setEnabled(True)
-        self.val_nbTir.setEnabled(True)
-        self.lab_time.setEnabled(True)
-        self.val_time.setEnabled(True)
+        
+        tir = self.getTirModule()
+        if hasattr(tir, 'stopTir'):
+            tir.stopTir()
+        
+        self.setControlsEnabled(True)
         self.but_start.setEnabled(True)
-        self.but_Shoot.setEnabled(True)
         self.but_stop.setEnabled(False)
-        self.but_stop.setStyleSheet("border-radius:20px;background-color: red")
-        #a = tirSJ.stopTir()
+        self.infoText.setStyleSheet("color: #888; font: 9pt;")
 
-    def Remain(self,nbstepdone,nbMax):
-        self.val_nbStepRemain.setText(str((nbstepdone)))
-        self.progressBar.setMaximum(int(nbMax))
-        self.progressBar.setValue(nbMax-nbstepdone)
-        
-        if nbstepdone == 0 :
-            print ('fin scan remain')
-            self.val_nbStepRemain.setText('scan done')
-            self.stopScan()
-            
-    def RemainShoot(self, nbstepdone)   :
-        #print('remain shoot', nbstepdone, self.nbStep)
-        
-        self.val_nbStepRemain.setText(str((nbstepdone)))
-        
-        if self.val_nbShoot == nbstepdone:
-            print ('fin scan multi shoot')
-            self.stopScan()
-            
+    def setControlsEnabled(self, enabled):
+        self.val_nbr_step.setEnabled(enabled)
+        self.val_step.setEnabled(enabled)
+        self.val_ini.setEnabled(enabled)
+        self.val_fin.setEnabled(enabled)
+        self.val_nbTir.setEnabled(enabled)
+        self.val_freq.setEnabled(enabled)
+        self.serverIpEdit.setEnabled(enabled)
+        self.serverPortEdit.setEnabled(enabled)
+        self.but_reconnect.setEnabled(enabled)
+        self.dummyCheckbox.setEnabled(enabled)
+        self.unitBouton.setEnabled(enabled)
+
     def stepChange(self):
-        self.nbStep = self.val_nbr_step.value()
-        self.vInit = self.val_ini.value()
-        self.vFin = self.val_fin.value()
-        if self.nbStep == 1:
-            self.vStep = self.vFin-self.vInit
-        else :
-            self.vStep = (self.vFin-self.vInit)/(self.nbStep-1)
-        self.val_step.setValue(self.vStep)
-        self.val_nbShoot = self.val_nbTir.value()
+        nbStep = self.val_nbr_step.value()
+        vInit = self.val_ini.value()
+        vFin = self.val_fin.value()
         
+        if nbStep <= 1:
+            vStep = vFin - vInit
+        else:
+            vStep = (vFin - vInit) / (nbStep - 1)
+        
+        self.val_step.setValue(vStep)
+
     def changeFinal(self):
-       self.nbStep = self.val_nbr_step.value()
-       self.vInit = self.val_ini.value()
-       self.vStep = self.val_step.value()
-       self.vFin = self.vInit + (self.nbStep-1) * self.vStep
-       self.val_fin.setValue(self.vFin)
-       self.val_nbShoot = self.val_nbTir.value()
-    
+        nbStep = self.val_nbr_step.value()
+        vInit = self.val_ini.value()
+        vStep = self.val_step.value()
+        vFin = vInit + (nbStep - 1) * vStep
+        self.val_fin.setValue(vFin)
+
     def startScan(self):
-        self.stepChange()
-        self.threadScan.start()
-        self.lab_nbr_step.setEnabled(False)
-        self.val_nbr_step.setEnabled(False)
-        self.lab_step.setEnabled(False)
-        self.lab_ini.setEnabled(False)
-        self.val_step.setEnabled(False)
-        self.val_ini.setEnabled(False)
-        self.lab_fin.setEnabled(False)
-        self.val_fin.setEnabled(False)
-        self.lab_nbTir.setEnabled(False)
-        self.val_nbTir.setEnabled(False)
-        self.lab_time.setEnabled(False)
-        self.val_time.setEnabled(False)
-        self.but_start.setEnabled(False)
-        self.but_Shoot.setEnabled(False)
-        self.but_stop.setEnabled(True)
-        self.but_stop.setStyleSheet("border-radius:20px;background-color: red")
-    
-    def unit(self):
-        '''
-        unit change mot foc
-        '''
-        ii = self.unitBouton.currentIndex()
-        if ii == 0: #  step
-            self.unitChange = 1
-            self.unitName = 'step'
-            
-        if ii == 1: # micron
-            self.unitChange = float((1*self.stepmotor)) 
-            self.unitName = 'um'
-        if ii == 2: #  mm 
-            self.unitChange = float((self.stepmotor)/1000)
-            self.unitName='mm'
-        if ii == 3: #  ps  double passage : 1 microns=6fs
-            self.unitChange = float(1*self.stepmotor*0.0066666666) 
-            self.unitName = 'ps'
-        if ii == 4: #  en degres
-            self.unitChange = 1 *self.stepmotor
-            self.unitName='°'    
-            
-        if self.unitChange == 0:
-            self.unitChange = 1 #avoid 0 
+        if not self.zmq_connected and not self.dummyMode:
+            QMessageBox.warning(
+                self, "Non connecté",
+                "Connexion au serveur de tir non établie.\n"
+                "Vérifiez l'IP et le port, puis cliquez sur Reconnecter.\n"
+                "Ou activez le mode Dummy pour tester."
+            )
+            return
         
-        self.val_step.setSuffix(" %s" % self.unitName)
-        self.val_ini.setSuffix(" %s" % self.unitName)
-        self.val_fin.setSuffix(" %s" % self.unitName)
- 
+        self.stepChange()
+        self.infoText.setStyleSheet("color: #4a9eff; font: 9pt;")
+        self.threadScan.start()
+        self.setControlsEnabled(False)
+        self.but_start.setEnabled(False)
+        self.but_stop.setEnabled(True)
+
+    def unit(self):
+        ii = self.unitBouton.currentIndex()
+        
+        units = {
+            0: (1, 'step'),
+            1: (float(self.stepmotor), 'µm'),
+            2: (float(self.stepmotor / 1000), 'mm'),
+            3: (float(self.stepmotor * 0.00666667), 'ps'),
+            4: (float(self.stepmotor), '°'),
+        }
+        
+        self.unitChange, self.unitName = units.get(ii, (1, 'step'))
+        
+        if self.unitChange == 0:
+            self.unitChange = 1
+        
+        self.val_step.setSuffix(f" {self.unitName}")
+        self.val_ini.setSuffix(f" {self.unitName}")
+        self.val_fin.setSuffix(f" {self.unitName}")
+
     def closeEvent(self, event):
-        """ when closing the window
-        """
         self.isWinOpen = False
         
-        self.threadScan.trigClient.stopClientThread()
-        time.sleep(0.1)
-        #print('close scan widget')
-        event.accept() 
-    
+        if self.threadScan.isRunning():
+            self.threadScan.stop = True
+            self.threadScan.wait(2000)
+        
+        self.disconnect_zmq()
+        event.accept()
 
-class ThreadShoot(QtCore.QThread):
-    nbRemainShoot = QtCore.pyqtSignal(float)
-    
-    def __init__(self, parent=None):
-        super(ThreadShoot, self).__init__(parent)
-        self.parent = parent
-        self.stop = False
-        
-    def run(self):
-        self.stop = False
-        nb = 0
-        for nu in range(0, int(self.parent.val_nbTir.value())):
-            if self.stop is True:
-                break
-            nb += 1
-            time.sleep(self.parent.val_time.value())
-            nbstepdone = nb
-            self.nbRemainShoot.emit(nbstepdone)
-            
-    def stopThread(self):
-        self.stop = True
-        print( "stop thread Shoot" ) 
-        
-        
-        
+
 class ThreadScan(QtCore.QThread):
-   
-    nbRemain = QtCore.pyqtSignal(int,int)
-    info = QtCore.pyqtSignal(str) # to send info to main widget 
+    """
+    Thread de scan synchronisé avec le serveur de tir ZMQ.
+    """
+    
+    nbRemain = QtCore.pyqtSignal(int, int)
+    info = QtCore.pyqtSignal(str)
 
     def __init__(self, parent=None):
-        super(ThreadScan,self).__init__(parent)
+        super(ThreadScan, self).__init__(parent)
         self.parent = parent
         self.stop = False
-        date = time.strftime("%Y_%m_%d_%H_%M_%S")
-        
-        #self.trigClient = THREADCLIENTTRIG(parent = self)
-        #self.trigClient.newShotnumber.connect(self.TrigReceived)
-        #self.trigClient.emitConnected = False
-        # self.trigClient.start()
-        self.trigNumber = 0
-        self.mvt = 0 
-        self.nbshooted = 0 # nombre de tir effectuée
-    
-    def TrigReceived(self, nbshoot):
-        print('new trig')
-        precis = 5  # precision for position checking
-        self.nbshoot = nbshoot
-        self.trigNumber = self.trigNumber + 1 # nombre de tir sans bouger 
-        self.nbshooted = self.nbshooted + 1  # nombre total de tir 
-        
-        if int(self.nbshooted) >= int(self.nbTotShot) :
-            self.trigClient.emitConnected = False
-            print('scan multishoot finished')
-            self.info.emit('Sequence ended at %s, duration: %.1f min' % (time.ctime(), (time.time()-self.t1)/60 ))
+        self.shots_received = 0
+        self.shots_needed = 0
 
-        elif self.trigNumber < (self.val_nbTir):
-            print('on a tiré',self.trigNumber,' sans bouger' )
-            self.info.emit("Trig shoot without moving   %s" % str(self.trigNumber))
+    def wait_position(self, target_pos, precision=5, timeout=60):
+        unit = self.parent.unitChange
+        unit_name = self.parent.unitName
+        
+        self.info.emit(f"→ {round(target_pos * unit, 2)} {unit_name}")
+        self.parent.MOT.move(int(target_pos))
+        
+        start_time = time.time()
+        
+        while not self.stop:
+            current_pos = self.parent.MOT.position()
+            
+            if abs(current_pos - target_pos) <= precision:
+                self.info.emit(f"✓ Position: {round(current_pos * unit, 2)} {unit_name}")
+                return True
+            
+            if time.time() - start_time > timeout:
+                self.info.emit("⚠️ Timeout position!")
+                return False
+            
+            time.sleep(0.1)
+        
+        return False
 
-        elif self.trigNumber == (self.val_nbTir):
-            print('on a assez tiré : ',self.trigNumber,' sans bouger' )
-            print('on bouge le moteur',self.movement[self.mvt])
-            self.info.emit("shoot without moving   %s" % str(self.trigNumber))
-            self.info.emit("motor move to   %s" % str(round(self.movement[self.mvt]*self.parent.unitChange,2)) )
-            self.parent.MOT.move(self.movement[self.mvt])
-            while True:
-                        if self.stop is True:
-                            break
-                        else :
-                            b = self.parent.MOT.position()
-                            print('position ', b,self.movement[self.mvt] - precis ,self.movement[self.mvt] + precis )
-                            time.sleep(0.1)
-                            
-                            if self.movement[self.mvt] - precis < b < self.movement[self.mvt] + precis :
-                                print("position reached", str(b))
-                                self.info.emit("position reached  %s" % round(b*self.parent.unitChange,2)) 
-                                break
-            print('multishot ici',self.freq,self.val_nbTir)
-            time.sleep(8) # cat labview 
-            tirSJ.multi_shot(self.freq,self.val_nbTir)
-            print('tir envoye multi')
-            msg = 'multi shot %s @ %s' % (str(self.freq), str(self.val_nbTir))
-            self.info.emit(msg)              
-            self.mvt = self.mvt +1 
-            self.trigNumber = 0
+    def trigger_shots(self, nb_shots, freq_index):
+        tir = self.parent.getTirModule()
         
-        self.nbRemain.emit(int(self.nbTotShot- self.nbshooted),int(self.nbTotShot))
+        try:
+            if nb_shots == 1:
+                self.info.emit("🎯 Tir unique...")
+                result = tir.Tir()
+                print(f"Tir unique déclenché: {result}")
+            else:
+                freq_map = {0: '0.1', 1: '0.2', 2: '0.5', 3: '1.0'}
+                self.info.emit(f"🎯 {nb_shots} tirs @ {freq_map[freq_index]} Hz...")
+                result = tir.multi_shot(freq_index, nb_shots)
+                print(f"Multi-shot: {nb_shots} @ freq={freq_index}, result={result}")
+            
+            return result is not None
+            
+        except Exception as e:
+            self.info.emit(f"❌ Erreur tir: {e}")
+            print(f"Erreur trigger_shots: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def wait_for_shots(self, nb_shots, freq_index, timeout=300):
+        # Mode dummy sans ZMQ
+        if self.parent.dummyMode and not self.parent.zmq_connected:
+            freq_map = {0: 0.1, 1: 0.2, 2: 0.5, 3: 1.0}
+            freq_hz = freq_map.get(freq_index, 0.1)
+            
+            for i in range(nb_shots):
+                if self.stop:
+                    return False
+                time.sleep(1.0 / freq_hz)
+                self.info.emit(f"[DUMMY] Tir {i+1}/{nb_shots}")
+            
+            return True
         
+        if not self.parent.zmq_connected:
+            self.info.emit("❌ Non connecté au serveur")
+            return False
+        
+        self.shots_received = 0
+        self.shots_needed = nb_shots
+        
+        freq_map = {0: 0.1, 1: 0.2, 2: 0.5, 3: 1.0}
+        freq_hz = freq_map.get(freq_index, 0.1)
+        expected_duration = nb_shots / freq_hz
+        adaptive_timeout = max(timeout, expected_duration * 2 + 30)
+        
+        self.info.emit(f"⏳ Attente {nb_shots} tir(s)...")
+        start_time = time.time()
+        
+        try:
+            while self.shots_received < nb_shots and not self.stop:
+                elapsed = time.time() - start_time
+                if elapsed > adaptive_timeout:
+                    self.info.emit("⚠️ Timeout tirs!")
+                    return False
+                
+                try:
+                    topic = self.parent.sub_socket.recv_string()
+                    event = self.parent.sub_socket.recv_json()
+                    
+                    if topic == "SHOOT":
+                        self.shots_received += 1
+                        shoot_number = event.get('number', '?')
+                        self.info.emit(f"💥 Tir {self.shots_received}/{nb_shots} (#{shoot_number})")
+                        print(f"Tir reçu: {self.shots_received}/{nb_shots} (#{shoot_number})")
+                        
+                except Exception as e:
+                    err_str = str(e).lower()
+                    if "temporarily unavailable" not in err_str and "temporairement non disponible" not in err_str:
+                        print(f"Erreur recv ZMQ: {e}")
+            
+            return self.shots_received >= nb_shots
+            
+        except Exception as e:
+            self.info.emit(f"❌ Erreur ZMQ: {e}")
+            print(f"Erreur ZMQ: {e}")
+            return False
+
     def run(self):
-
-        print('run sequence')
-        self.nbshooted = 0
+        print('=== Démarrage séquence scan ===')
         self.stop = False
         
-        self.info.emit('Start sequence (at %s)' % time.ctime())
+        self.info.emit(f'▶ Scan démarré à {time.strftime("%H:%M:%S")}')
+        t_start = time.time()
 
-        self.vini = self.parent.vInit/self.parent.unitChange
-        self.vfin = self.parent.vFin/self.parent.unitChange
-        self.step = self.parent.vStep/self.parent.unitChange
-        self.val_time = self.parent.val_time.value()
-        self.val_nbTir = self.parent.val_nbTir.value()
+        unit_change = self.parent.unitChange
+        v_ini = self.parent.val_ini.value() / unit_change
+        v_fin = self.parent.val_fin.value() / unit_change
+        v_step = self.parent.val_step.value() / unit_change
+        nb_tirs = int(self.parent.val_nbTir.value())
+        freq_index = self.parent.val_freq.currentIndex()
         
-        if self.val_time == 1:
-            self.freq = 3
-            self.multi = True
-        elif self.val_time == 0.5:  
-            self.freq = 2
-            self.multi = True
-        elif self.val_time == 0.2 :
-            self.freq = 1
-            self.multi = True
-        elif self.val_time == 0.1 :
-            self.freq = 0
-            self.multi = True
+        if v_step == 0:
+            positions = [v_ini]
         else:
-            self.val_time = 1/self.val_time
-            self.multi = False
-
-        self.parent.MOT.move(self.vini)
-        self.t1 = time.time()
-        b = self.parent.MOT.position()
-        while b!= self.vini:
-            if self.stop is True:
-                break
-            else:	
-                time.sleep(0.1)
-                b = self.parent.MOT.position()
-
-        time.sleep(0.1)
-
-        self.info.emit("first position reached %s" % round(b*self.parent.unitChange,2))
-        self.movement = np.arange(self.vini+self.step,self.vfin+self.step,self.step)
-        print(self.movement)
-        self.nbTotShot = int( (np.size(self.movement) +1 ) * self.val_nbTir)
-        self.nbRemain.emit(int(self.nbTotShot),int(self.nbTotShot))
-        nb = 0
-
-        if self.multi is True : 
-                
-                print('multishoot @%s' % str(self.freq))
-                print('number of shot /mvt%s' % str(self.val_nbTir))
-                self.mvt = 0 
-                self.trigClient.emitConnected = True
-                tirSJ.multi_shot(self.freq,self.val_nbTir)
-                print('%s tir envoye @%s'% (str(self.freq), str(self.val_nbTir)))
-
-        else : # premier tir a la position ini pas compris dans self.movement
-            for nu in range (0,int(self.val_nbTir)):
-                            nb+=1
-                            self.info.emit('shot')
-                            a = tirSJ.Tir()
-                            print('shot' )
-                            if a == 0 or a == "":
-                                print('error shot')
-                                self.nbRemain.emit(int(self.nbTotShot-nb),int(self.nbTotShot))
-                                print('wait',self.val_time)
-                                self.info.emit('wait '+ str(self.val_time)+ "s")
-                                time.sleep(self.val_time)
-
-            for mv in self.movement:
-                
-                if self.stop is True:
-                    break
-                else:
-                    mv = int(mv)
-                    self.parent.MOT.move(mv)
-                    b = self.parent.MOT.position()
-                    b = int(b)
-                    while True:
-                        if self.stop is True:
-                            break
-                        else :
-                            b = self.parent.MOT.position()
-                            time.sleep(0.1)
-                            precis = 1
-                            if b == mv :
-                                print( "position reached", str(b))
-                                self.info.emit("position reached  %s" % round(b*self.parent.unitChange,2)) 
-                                break
-                        
-                        for nu in range (0,int(self.val_nbTir)):
-                            nb+=1
-                            self.info.emit('shot')
-                            a = tirSJ.Tir()
-                            print('shot' )
-                            if a == 0 or a == "":
-                                print('error shot')
-                                self.nbRemain.emit(int(self.nbTotShot-nb),int(self.nbTotShot))
-                                print('wait',self.val_time)
-                                self.info.emit('wait '+ str(self.val_time)+ "s")
-                                time.sleep(self.val_time)
-
-        if self.multi is False :
-            self.info.emit('Sequence ended at %s, duration: %.1f min' % (time.ctime(), (time.time()-self.t1)/60 ))
-            self.parent.stopScan()
-
-    def stopThread(self):
-        self.stop = True
-        self.trigClient.emitConnected = False
-        print( "stop thread" )  
-
-class THREADCLIENTTRIG(QtCore.QThread):
-    '''
-    Second thread for trigger
-    '''
-    newShotnumber = Signal(int)  # QtCore.Signal(int) # signal to send 
-    
-    def __init__(self,parent=None):
-        super(THREADCLIENTTRIG, self).__init__(parent)
-        self.nbshoot = 0
-        self.parent = parent 
-        self.emitConnected = False
-        print('run trigger server client')
-        self.clientSocket = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
-        self.serverHost = '10.0.1.57'
-        self.serverPort = 5009
-        self.clientSocket.connect((self.serverHost, self.serverPort))
-        self.ClientIsConnected = True
-        print('client connected to server', self.serverHost)
+            positions = list(np.arange(v_ini, v_fin + v_step/2, v_step))
         
-
-    def run(self):
-        #  quand on lance le scan on regarde le nombre de tir trigger
-        cmd = 'numberShoot?'
-        self.clientSocket.send(cmd.encode())
-            # print('connected...')
-        try:
-            receiv = self.clientSocket.recv(64500)
-            self.nbshoot = int(receiv.decode())
-            nbshot_temp = self.nbshoot
-        except:
-                nbshot_temp = -1
-                print('error connection')
-                self.ClientIsConnected = False
-
-        while self.ClientIsConnected is True:
-            cmd = 'numberShoot?'
-            self.clientSocket.send(cmd.encode())
-            # print('connected...')
-            try:
-                receiv = self.clientSocket.recv(64500)
-                nbshot_temp = int(receiv.decode())
-                #print(nbshot_temp)
-            except:
-                nbshot_temp = -1
-                print('error connection')
-                self.ClientIsConnected = False
-            if self.nbshoot != nbshot_temp:
-                self.nbshoot = nbshot_temp
-                if self.emitConnected is True:
-                    self.newShotnumber.emit(self.nbshoot)
-                # print('emit trig')
-            time.sleep(0.02)
-     
-    def stopClientThread(self):
-        print('close connection to trig')
-        self.ClientIsConnected = False
-        self.clientSocket.close()
-
-
-if __name__=='__main__':
-    appli = QApplication(sys.argv)
-    s = THREADCLIENTTRIG()
-    s.start()
-    appli.exec()
+        nb_positions = len(positions)
+        total_shots = nb_positions * nb_tirs
+        
+        self.nbRemain.emit(total_shots, total_shots)
+        
+        freq_labels = ['0.1 Hz', '0.2 Hz', '0.5 Hz', '1 Hz']
+        print(f"Positions: {nb_positions}, Tirs/pos: {nb_tirs} @ {freq_labels[freq_index]}, Total: {total_shots}")
+        
+        shots_done = 0
+        
+        for i, pos in enumerate(positions):
+            if self.stop:
+                break
+            
+            print(f"\n--- Position {i+1}/{nb_positions}: {pos} ---")
+            
+            if not self.wait_position(pos, precision=5, timeout=60):
+                if not self.stop:
+                    self.info.emit("❌ Position non atteinte")
+                break
+            
+            time.sleep(0.1)
+            
+            if not self.trigger_shots(nb_tirs, freq_index):
+                if not self.stop:
+                    self.info.emit("❌ Échec déclenchement")
+                break
+            
+            if not self.wait_for_shots(nb_tirs, freq_index):
+                if not self.stop:
+                    self.info.emit("❌ Tirs non reçus")
+                break
+            
+            shots_done += nb_tirs
+            remaining = total_shots - shots_done
+            self.nbRemain.emit(remaining, total_shots)
+            
+            print(f"Position {i+1}/{nb_positions} OK, reste {remaining}")
+        
+        duration = (time.time() - t_start) / 60
+        if self.stop:
+            self.info.emit(f'⏹ Interrompu ({duration:.1f} min)')
+        else:
+            self.info.emit(f'✅ Terminé en {duration:.1f} min')
+            self.nbRemain.emit(0, total_shots)
+        
+        print(f'=== Fin scan ({duration:.1f} min) ===')
