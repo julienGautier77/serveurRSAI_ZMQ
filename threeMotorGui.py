@@ -70,10 +70,11 @@ class THREEMOTORGUI(QWidget):
         self.etatLat = 'ok'
         self.etatVert = 'ok'
         self.etatFoc = 'ok'
-        self.PosEtatFoc = [0, 'ok']
-        self.PosEtatLat = [0, 'ok']
-        self.PosEtatVert = [0, 'ok']
-        self.configPath = str(p.parent)+sepa+"fichiersConfig"+sepa
+        self._positionLatStep = 0
+        self._positionVertStep = 0
+        self._positionFocStep =0
+
+        self.configPath = str(p.parent) + sepa + "fichiersConfig"+sepa
         self.isWinOpen = False
        
         self.refShowId = showRef
@@ -118,12 +119,21 @@ class THREEMOTORGUI(QWidget):
        
         self.threadLat = PositionThread(self, mot=self.MOT[0])
         self.threadLat.POS.connect(self.PositionLat)
-        time.sleep(0.121)
+        time.sleep(0.01)
         self.threadVert = PositionThread(self, mot=self.MOT[1])
         self.threadVert.POS.connect(self.PositionVert)
-        time.sleep(0.153)
+        time.sleep(0.01)
         self.threadFoc = PositionThread(self, mot=self.MOT[2])
         self.threadFoc.POS.connect(self.PositionFoc)
+
+        self.threadEtatLat = EtatThread(self, mot=self.MOT[0])
+        self.threadEtatLat.ETAT.connect(self.EtatLat)
+        time.sleep(0.01)
+        self.threadEtatVert = EtatThread(self, mot=self.MOT[1])
+        self.threadEtatVert.ETAT.connect(self.EtatVert)
+        time.sleep(0.01)
+        self.threadEtatFoc = EtatThread(self, mot=self.MOT[2])
+        self.threadEtatFoc.ETAT.connect(self.EtatFoc)
 
         # Initialisation des unités
         if self.indexUnitFoc == 0:
@@ -269,41 +279,27 @@ class THREEMOTORGUI(QWidget):
     def startThread2(self):
         self.threadVert.ThreadINIT()
         self.threadVert.start()
-        time.sleep(0.12)
+        time.sleep(0.01)
         self.threadFoc.ThreadINIT()
         self.threadFoc.start()
-        time.sleep(0.13)
+        time.sleep(0.01)
         self.threadLat.ThreadINIT()
         self.threadLat.start()
+        time.sleep(0.01)
+        self.threadEtatVert.ThreadINIT()
+        self.threadEtatVert.start()
+        time.sleep(0.01)
+        self.threadEtatFoc.ThreadINIT()
+        self.threadEtatFoc.start()
+        time.sleep(0.01)
+        self.threadEtatLat.ThreadINIT()
+        self.threadEtatLat.start()
 
     def setup(self):
         mainLayout = QVBoxLayout()
         mainLayout.setSpacing(5)
         mainLayout.setContentsMargins(10, 5, 5, 5)
         
-        # ========== TITRE ==========
-        # headerGroup = QGroupBox()
-        # headerGroup.setStyleSheet("""
-        #     QGroupBox {
-        #         border: 2px solid #555;
-        #         border-radius: 5px;
-        #         margin-top: 5px;
-        #         padding-top: 8px;
-        #         background-color: #2d2d2d;
-        #     }
-        # """)
-        # headerGroup.setMaximumHeight(70)
-        
-        # hboxTitre = QHBoxLayout()
-        # self.nomTilt = QLabel(self.nomTilt)
-        # self.nomTilt.setStyleSheet("font: bold 18pt; color: #4a9eff;")
-        # hboxTitre.addWidget(self.nomTilt)
-        
-        # hboxTitre.addStretch()
-        
-        
-        # headerGroup.setLayout(hboxTitre)
-        # mainLayout.addWidget(headerGroup)
         
         # ========== MOTEURS LATÉRAL ET VERTICAL ==========
         motorsGroup = QGroupBox(f"  {self.nomTilt} Control")
@@ -730,17 +726,48 @@ class THREEMOTORGUI(QWidget):
         self.jogStep_2.setFocus()
         self.refShow()
 
-    def focusInEvent(self, event):
-        super().focusInEvent(event)
-        self.threadLat.positionSleep = 0.05
-        self.threadVert.positionSleep = 0.05
-        self.threadFoc.positionSleep = 0.05
+    # def focusInEvent(self, event):
+    #     super().focusInEvent(event)
+    #     self.threadLat.positionSleep = 0.05
+    #     self.threadVert.positionSleep = 0.05
+    #     self.threadFoc.positionSleep = 0.05
 
-    def focusOutEvent(self, event):
-        super().focusOutEvent(event)
-        self.threadLat.positionSleep = 1
-        self.threadVert.positionSleep = 1
-        self.threadFoc.positionSleep = 1
+    # def focusOutEvent(self, event):
+    #     super().focusOutEvent(event)
+    #     self.threadLat.positionSleep = 1
+    #     self.threadVert.positionSleep = 1
+    #     self.threadFoc.positionSleep = 1
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QtCore.QEvent.Type.ActivationChange:
+            if self.isActiveWindow():
+                self.threadLat.setPositionSleep(0.05)
+                self.threadVert.setPositionSleep(0.05)
+                self.threadFoc.setPositionSleep(0.05)
+                # print('window active')
+            else:
+                self.threadLat.setPositionSleep(1)
+                self.threadVert.setPositionSleep(1)
+                self.threadFoc.setPositionSleep(1)
+                # print('window inactive')
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self.threadLat.setPositionSleep(10)
+        self.threadVert.setPositionSleep(10)
+        self.threadFoc.setPositionSleep(10)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self.isActiveWindow():
+            self.threadLat.setPositionSleep(0.05)
+            self.threadVert.setPositionSleep(0.05)
+            self.threadFoc.setPositionSleep(0.05)
+        else:
+            self.threadLat.setPositionSleep(1) 
+            self.threadVert.setPositionSleep(1)
+            self.threadFoc.setPositionSleep(1)
 
     def actionButton(self):
         self.unitFocBouton.currentIndexChanged.connect(self.unitFoc)
@@ -1033,8 +1060,6 @@ class THREEMOTORGUI(QWidget):
             absButton.setSuffix(" %s" % self.unitNameFoc)
             eee += 1
 
-        self.PositionFoc(self.PosEtatFoc)
-
     def unitTrans(self):
         valueJog = self.jogStep.value() / self.unitChangeLat
         self.indexUnit = self.unitTransBouton.currentIndex()
@@ -1074,27 +1099,26 @@ class THREEMOTORGUI(QWidget):
             absButton.setValue(float(self.refValueVertStep[eee]) * self.unitChangeVert)
             absButton.setSuffix(" %s" % self.unitNameTrans)
             eee += 1
-        self.PositionLat(self.PosEtatLat)
-        self.PositionVert(self.PosEtatVert)
-
-
+        # self.PositionLat(self.PosEtatLat)
+        # self.PositionVert(self.PosEtatVert)
 
     def StopMot(self):
         for zzi in range(0, 3):
             self.MOT[zzi].stopMotor()
         self.addLog("STOP", "⏹ Arrêt de tous les moteurs")
 
-    @pyqtSlot(object)
+    @pyqtSlot(float)
     def PositionLat(self, Posi):
-        self.PosEtatLat = Posi
-        self.PosiLat = Posi[0]
-        self.etatLat = str(Posi[1])
-        a = float(self.PosiLat)
+        
+        a = float(Posi)
+        self._positionLatStep = a
         b = a
         a = a * self.unitChangeLat
         
         self.position_Lat.setText(f"{round(a, 2)} {self.unitNameTrans}")
-        
+    
+    def EtatLat(self,etat):
+        self.etatLat = etat
         if self.etatLat_old != self.etatLat:
             self.etatLat_old = self.etatLat
             if self.etatLat == 'FDC-':
@@ -1121,7 +1145,7 @@ class THREEMOTORGUI(QWidget):
         if (self.etatLat == 'ok' or self.etatLat == '?'):
             for nbRefInt in range(1, 7):
                 if positionConnue_Lat == 0:
-                    if float(self.refValueLatStep[nbRefInt-1]) - precis < b < float(self.refValueLatStep[nbRefInt-1]) + precis:
+                    if float(self.refValueLatStep[nbRefInt-1]) - precis < self._positionLatStep< float(self.refValueLatStep[nbRefInt-1]) + precis:
                         self.enPosition_Lat.setText(f'📍 {self.refNameLat[nbRefInt-1]}')
                         self.enPosition_Lat.setStyleSheet('font: bold 9pt; color: #4a9eff; background-color: #2d2d2d; border: 1px solid #4a9eff;')
                         positionConnue_Lat = 1
@@ -1130,17 +1154,16 @@ class THREEMOTORGUI(QWidget):
             self.enPosition_Lat.setText('✅')
             self.enPosition_Lat.setStyleSheet('font: bold 9pt; color: #00ff00; background-color: #2d2d2d; border: 1px solid #555;')
 
-    @pyqtSlot(object)
+    @pyqtSlot(float)
     def PositionVert(self, Posi):
-        self.PosEtatVert = Posi
-        self.PosiVert = Posi[0]
-        self.etatVert = str(Posi[1])
-        a = float(self.PosiVert)
+        a = float(Posi)
+        self._positionVertStep = a
         b = a
         a = a * self.unitChangeVert
-        
         self.position_Vert.setText(f"{round(a, 2)} {self.unitNameTrans}")
-        
+
+    def EtatVert(self,etat):
+        self.etatVert= etat   
         if self.etatVert != self.etatVert_old:
             self.etatVert_old = self.etatVert
             if self.etatVert == 'FDC-':
@@ -1167,7 +1190,7 @@ class THREEMOTORGUI(QWidget):
         if (self.etatVert == 'ok' or self.etatVert == '?'):
             for nbRefInt in range(1, 7):
                 if positionConnue_Vert == 0:
-                    if float(self.refValueVertStep[nbRefInt-1]) - precis < b < float(self.refValueVertStep[nbRefInt-1]) + precis:
+                    if float(self.refValueVertStep[nbRefInt-1]) - precis < self._positionVertStep < float(self.refValueVertStep[nbRefInt-1]) + precis:
                         self.enPosition_Vert.setText(f'📍 {self.refNameVert[nbRefInt-1]}')
                         self.enPosition_Vert.setStyleSheet('font: bold 9pt; color: #4a9eff; background-color: #2d2d2d; border: 1px solid #4a9eff;')
                         positionConnue_Vert = 1
@@ -1176,18 +1199,16 @@ class THREEMOTORGUI(QWidget):
             self.enPosition_Vert.setText('✅')
             self.enPosition_Vert.setStyleSheet('font: bold 9pt; color: #00ff00; background-color: #2d2d2d; border: 1px solid #555;')
 
-    @pyqtSlot(object)
-
+    @pyqtSlot(float)
     def PositionFoc(self, Posi):
-        self.PosEtatFoc = Posi
-        self.PosiFoc = Posi[0]
-        self.etatFoc = str(Posi[1])
-        a = float(self.PosiFoc)
-        b = a
+        a = float(Posi)
+        self._positionFocStep = a
         a = a * self.unitChangeFoc
         
         self.position_Foc.setText(f"{round(a, 2)} {self.unitNameFoc}")
-        
+
+    def EtatFoc(self,etat):  
+        self.etatFoc = etat
         if self.etatFoc != self.etatFoc_old:
             self.etatFoc_old = self.etatFoc
             if self.etatFoc == 'FDC-':
@@ -1214,7 +1235,7 @@ class THREEMOTORGUI(QWidget):
         if (self.etatFoc == 'ok' or self.etatFoc == '?'):
             for nbRefInt in range(1, 7):
                 if positionConnue_Foc == 0:
-                    if float(self.refValueFocStep[nbRefInt-1]) - precis < b < float(self.refValueFocStep[nbRefInt-1]) + precis:
+                    if float(self.refValueFocStep[nbRefInt-1]) - precis < self._positionFocStep < float(self.refValueFocStep[nbRefInt-1]) + precis:
                         self.enPosition_Foc.setText(f'📍 {self.refNameFoc[nbRefInt-1]}')
                         self.enPosition_Foc.setStyleSheet('font: bold 9pt; color: #4a9eff; background-color: #2d2d2d; border: 1px solid #4a9eff;')
                         positionConnue_Foc = 1
@@ -1319,7 +1340,7 @@ class THREEMOTORGUI(QWidget):
             'details': details
         }
         self.actionLog.append(log_entry)
-        print(f"[LOG] {timestamp} {action} {details}")
+        # print(f"[LOG] {timestamp} {action} {details}")
 
     def showLog(self):
         if self.logWindow is None or not self.logWindow.isVisible():
@@ -1340,17 +1361,24 @@ class THREEMOTORGUI(QWidget):
 
     def closeEvent(self, event):
         self.fini()
-        time.sleep(0.1)
+        
         event.accept()
 
     def fini(self):
         self.threadLat.stopThread()
+        self.threadLat.wait(1000)
         self.threadVert.stopThread()
+        self.threadVert.wait(1000)
         self.threadFoc.stopThread()
+        self.threadFoc.wait(1000)
+
+        self.threadEtatLat.stopThread()
+        self.threadEtatVert.stopThread()
+        self.threadEtatFoc.stopThread()
         self.isWinOpen = False
-        time.sleep(0.1)
+        #time.sleep(0.1)
         self.updateDB()
-        time.sleep(0.2)
+        #time.sleep(0.2)
 
 
 class REF3M(QWidget):
@@ -1459,19 +1487,22 @@ class REF3M(QWidget):
 
 
 class PositionThread(QtCore.QThread):
-    '''Thread pour affichage position'''
-    import time
-    POS = QtCore.pyqtSignal(object)
-    ETAT = QtCore.pyqtSignal(str)
+    '''Thread pour afficher position et état'''
+    POS = QtCore.pyqtSignal(float)
 
     def __init__(self, parent=None, mot=''):
         super(PositionThread, self).__init__(parent)
         self.MOT = mot
         self.parent = parent
         self.stop = False
+        self.positionSleep = 0.05
         self.etat_old = ""
         self.Posi_old = 0
-        self.positionSleep = 0.05
+    def GetPositionSleep(self):
+        return self.positionSleep
+    
+    def setPositionSleep(self, value):
+        self.positionSleep = value
 
     def run(self):
         while True:
@@ -1479,21 +1510,53 @@ class PositionThread(QtCore.QThread):
                 break
             else:
                 Posi = (self.MOT.position())
-                time.sleep(self.positionSleep)
-                time.sleep(0.01)
-                etat = self.MOT.etatMotor()
-                if self.Posi_old != Posi or self.etat_old != etat:
-                    self.POS.emit([Posi, etat])
-                    self.Posi_old = Posi
-                    self.etat_old = etat
+                positionSleepVa = self.GetPositionSleep()
+                time.sleep(positionSleepVa)
+                try:
+                    if self.Posi_old != Posi :
+                        self.POS.emit(Posi)
+                        self.Posi_old = Posi
+                except Exception as e:
+                    print('error emit', e)
 
     def ThreadINIT(self):
         self.stop = False
 
     def stopThread(self):
         self.stop = True
-        time.sleep(0.1)
+        # time.sleep(0.1)
 
+
+class EtatThread(QtCore.QThread):
+    '''Thread pour afficher état'''
+    ETAT = QtCore.pyqtSignal(str)
+
+    def __init__(self, parent=None, mot=''):
+        super(EtatThread, self).__init__(parent)
+        self.MOT = mot
+        self.parent = parent
+        self.stop = False
+        self.etatSleep = 0.5
+        self.etat_old = ""
+        self.Posi_old = 0
+
+    def run(self):
+        while self.stop is False:
+            time.sleep(self.etatSleep)
+            etat = self.MOT.etatMotor()
+            try:
+                if self.etat_old != etat:
+                        self.ETAT.emit(etat)
+                        self.etat_old = etat
+            except Exception as e:
+                print('error etat emit', e)
+
+    def ThreadINIT(self):
+        self.stop = False
+
+    def stopThread(self):
+        self.stop = True
+        # time.sleep(0.1)
 
 class LogWindow(QDialog):
     """Fenêtre de log modernisée"""

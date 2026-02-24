@@ -202,7 +202,7 @@ class DANAMOTOR(MAINMOTOR):
         
         # Étape 7 : Finalisation
         self.update_progress(100, "✅ Interface DANA prête !")
-        time.sleep(0.5)
+        time.sleep(0.05)  # Petite pause pour montrer 100%                                  
         
         # Fermer l'écran de progression
         if hasattr(self, 'progressScreen') and self.progressScreen:

@@ -67,7 +67,7 @@ class ONEMOTORGUI(QWidget):
         self.logWindow = None
 
         self.MOT[0] = zmq_client_RSAI.MOTORRSAI(self.IpAdress, self.NoMotor)
-        time.sleep(0.05)
+        time.sleep(0.01)
 
         if self.MOT[0].isconnected is True:
             self.addLog("Connexion", "✅ Serveur connecté")
@@ -104,9 +104,12 @@ class ONEMOTORGUI(QWidget):
             self.unitChange = self.stepmotor[0]
             self.unitName = '°'
 
+        self._positionStep = 0
+
         self.thread = PositionThread(self, mot=self.MOT[0])
         self.thread.POS.connect(self.Position)
-        
+        self.threadEtat = EtatThread(self, mot=self.MOT[0])
+        self.threadEtat.ETAT.connect(self.Etat)
         self.addLog("Initialisation", f"Moteur {self.NoMotor} - {self.equipementName}")
         self.refreshLog()
         
@@ -171,6 +174,8 @@ class ONEMOTORGUI(QWidget):
         self.thread.ThreadINIT()
         self.thread.start()
         time.sleep(0.01)
+        self.threadEtat.ThreadINIT()
+        self.threadEtat.start()
     
     def setup(self):
 
@@ -523,14 +528,35 @@ class ONEMOTORGUI(QWidget):
         self.refShow()
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
-    def focusOutEvent(self, event):
-        super().focusOutEvent(event)
-        self.thread.positionSleep = 1
-        # print('focus out')
+    # def focusOutEvent(self, event):
+    #     super().focusOutEvent(event)
+    #     self.thread.positionSleep = 1
+    #     # print('focus out')
 
-    def focusInEvent(self, event):
-        super().focusInEvent(event)
-        self.thread.positionSleep = 0.02
+    # def focusInEvent(self, event):
+    #     super().focusInEvent(event)
+    #     self.thread.positionSleep = 0.02
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QtCore.QEvent.Type.ActivationChange:
+            if self.isActiveWindow():
+                self.thread.setPositionSleep(0.05)
+                # print('window active')
+            else:
+                self.thread.setPositionSleep(0.5)
+                # print('window inactive')
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self.thread.setPositionSleep(10)              # fenêtre cachée/minimisée
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self.isActiveWindow():
+            self.thread.setPositionSleep(0.05)
+        else:
+            self.thread.setPositionSleep(0.5) 
 
     def actionButton(self):
         self.unitBouton.currentIndexChanged.connect(self.unit)
@@ -694,20 +720,17 @@ class ONEMOTORGUI(QWidget):
             absButton.setValue(float(self.refValueStep[eee] * self.unitChange))
             absButton.setSuffix(" %s" % self.unitName)
             eee += 1
-        self.Position(self.Posi)
+        
 
     def StopMot(self):
         for zzi in range(0, 1):
             self.MOT[zzi].stopMotor()
             self.addLog("STOP", "⏹ Arrêt moteur")
 
-    @pyqtSlot(object)
-    def Position(self, Posi):
-        self.Posi = Posi
-        Pos = Posi[0]
-        self.etat = str(Posi[1])
+    @pyqtSlot(float)
+    def Position(self, Pos):
         a = float(Pos)
-        b = a
+        self._positionStep = a # sans unit change 
         a = a * self.unitChange
 
         self.position.setText(str(round(a, 2)) + f" {self.unitName}")
@@ -722,6 +745,10 @@ class ONEMOTORGUI(QWidget):
             }
         """)
         
+    @pyqtSlot(str)
+    def Etat(self, etat):
+
+        self.etat = etat
         if self.etat != self.etat_old:
             self.etat_old = self.etat
             if self.etat == 'FDC-':
@@ -742,6 +769,7 @@ class ONEMOTORGUI(QWidget):
             elif self.etat == 'errorConnect':
                 self.enPosition.setText('❌ Équipement non connecté')
                 self.enPosition.setStyleSheet('font: bold 10pt; color: red; background-color: #2d2d2d; border: 1px solid red; padding: 5px;')
+        
         if self.etat == 'ok' or self.etat == '?':
            
             precis = 2
@@ -749,7 +777,7 @@ class ONEMOTORGUI(QWidget):
             for nbRefInt in range(1, 7):
                 if positionConnue == 0:
                     
-                    if float(self.refValueStep[nbRefInt-1]) - precis < b < float(self.refValueStep[nbRefInt-1]) + precis:
+                    if float(self.refValueStep[nbRefInt-1]) - precis < self._positionStep < float(self.refValueStep[nbRefInt-1]) + precis:
                         self.enPosition.setText(f'📍 {self.refName[nbRefInt-1]}')
                         self.enPosition.setStyleSheet('font: bold 11pt; color: #4a9eff; background-color: #2d2d2d; border: 1px solid #4a9eff; padding: 5px;')
                         positionConnue = 1
@@ -758,10 +786,6 @@ class ONEMOTORGUI(QWidget):
                     else: 
                         self.enPosition.setText('✅')
                         self.enPosition.setStyleSheet('font: bold 11pt; color: #00ff00; background-color: #2d2d2d; border: 1px solid #555; padding: 5px;')
-
-
-    def Etat(self, etat):
-        self.etat = etat
 
     def take(self):
         sender = QtCore.QObject.sender(self)
@@ -851,17 +875,19 @@ class ONEMOTORGUI(QWidget):
 
     def closeEvent(self, event):
         self.fini()
-        time.sleep(1)
+        #time.sleep(1)
         event.accept()
 
     def fini(self):
         self.thread.stopThread()
+        self.thread.wait(1000) 
         self.isWinOpen = False
         self.updateDB()
-
+        self.threadEtat.stopThread()
+        self.threadEtat.wait(1000)
         if self.scanWidget.isWinOpen is True:
             self.scanWidget.close()
-        time.sleep(0.05)
+        #time.sleep(0.05)
 
 
 class REF1M(QWidget):
@@ -950,9 +976,7 @@ class REF1M(QWidget):
 
 class PositionThread(QtCore.QThread):
     '''Thread pour afficher position et état'''
-    import time
-    POS = QtCore.pyqtSignal(object)
-    ETAT = QtCore.pyqtSignal(str)
+    POS = QtCore.pyqtSignal(float)
 
     def __init__(self, parent=None, mot=''):
         super(PositionThread, self).__init__(parent)
@@ -963,20 +987,24 @@ class PositionThread(QtCore.QThread):
         self.etat_old = ""
         self.Posi_old = 0
 
+    def GetPositionSleep(self):
+        return self.positionSleep
+    
+    def setPositionSleep(self, value):
+        self.positionSleep = value
+
     def run(self):
         while True:
             if self.stop is True:
                 break
             else:
                 Posi = (self.MOT.position())
-                time.sleep(self.positionSleep)
-                #  print(f"positiosleep {self.positionSleep}")
-                etat = self.MOT.etatMotor()
+                positionSleepVa = self.GetPositionSleep()
+                time.sleep(positionSleepVa)
                 try:
-                    if self.Posi_old != Posi or self.etat_old != etat:
-                        self.POS.emit([Posi, etat])
+                    if self.Posi_old != Posi :
+                        self.POS.emit(Posi)
                         self.Posi_old = Posi
-                        self.etat_old = etat
                 except Exception as e:
                     print('error emit', e)
 
@@ -985,7 +1013,39 @@ class PositionThread(QtCore.QThread):
 
     def stopThread(self):
         self.stop = True
-        time.sleep(0.1)
+        # time.sleep(0.1)
+
+
+class EtatThread(QtCore.QThread):
+    '''Thread pour afficher état'''
+    ETAT = QtCore.pyqtSignal(str)
+
+    def __init__(self, parent=None, mot=''):
+        super(EtatThread, self).__init__(parent)
+        self.MOT = mot
+        self.parent = parent
+        self.stop = False
+        self.etatSleep = 0.5
+        self.etat_old = ""
+        self.Posi_old = 0
+
+    def run(self):
+        while self.stop is False:
+            time.sleep(self.etatSleep)
+            etat = self.MOT.etatMotor()
+            try:
+                if self.etat_old != etat:
+                        self.ETAT.emit(etat)
+                        self.etat_old = etat
+            except Exception as e:
+                print('error etat emit', e)
+
+    def ThreadINIT(self):
+        self.stop = False
+
+    def stopThread(self):
+        self.stop = True
+        # time.sleep(0.1)
 
 
 class LogWindow(QDialog):
