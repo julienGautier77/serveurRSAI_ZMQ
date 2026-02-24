@@ -1,3 +1,4 @@
+
 """
 Client MOTORRSAI avec ZMQ DEALER
 Compatible avec le serveur ROUTER-DEALER
@@ -73,7 +74,7 @@ class MOTORRSAI():
             # Configuration des timeouts et options (optimisé pour 60+ clients)
             self.socket.setsockopt(zmq.RCVTIMEO, 5000)  # Timeout réception: 5s (augmenté)
             self.socket.setsockopt(zmq.SNDTIMEO, 5000)  # Timeout envoi: 5s (augmenté)
-            self.socket.setsockopt(zmq.LINGER, 1000)    # Attendre 1s à la fermeture
+            self.socket.setsockopt(zmq.LINGER, 500)    # Attendre 1s à la fermeture
             self.socket.setsockopt(zmq.SNDHWM, 100)     # Queue d'envoi
             self.socket.setsockopt(zmq.RCVHWM, 100)     # Queue de réception
 
@@ -354,22 +355,28 @@ class MOTORRSAI():
             dat = 1
         
         return dat
+    def setStep(self,step):
+        """Valeur de 1 pas dans les unités"""
+        cmd = 'setStep'
+        cmdsend = f"{self.IpAddress}, {self.NoMotor}, {cmd},{step}"
+        dat = self.sendMessage(cmdsend)
+        print('set client step')
 
     def getButLogPlusValue(self):
         """Récupère la butée positive"""
         cmd = 'buteePos'
         cmdsend = f"{self.IpAddress}, {self.NoMotor}, {cmd}"
         dat = self.sendMessage(cmdsend)
-        try:
-            dat = float(dat)
-        except Exception as e:
-            print('error getButLOgPLus', e)
-            dat = 1
+        cmd = 'buteePos'
+        cmdsend = f"{self.IpAddress}, {self.NoMotor}, {cmd}"
+        dat = self.sendMessage(cmdsend)
         return dat
 
     def setButLogPlusValue(self, butPlus):
-        """Définit la butée positive (à implémenter)"""
-        pass
+        """Définit la butée positive """
+        cmd = 'setButeePos'
+        cmdsend = f"{self.IpAddress}, {self.NoMotor}, {cmd}, {butPlus}"
+        dat = self.sendMessage(cmdsend)
 
     def getButLogMoinsValue(self):
         """Récupère la butée négative"""
@@ -384,8 +391,10 @@ class MOTORRSAI():
         return dat
 
     def setButLogMoinsValue(self, butMoins):
-        """Définit la butée négative (à implémenter)"""
-        pass
+        """Définit la butée négative"""
+        cmd = 'setButeeNeg'
+        cmdsend = f"{self.IpAddress}, {self.NoMotor}, {cmd},{butMoins}"
+        dat = self.sendMessage(cmdsend)
 
     def rmove(self, posrelatif, vitesse=1000):
         """
@@ -435,12 +444,7 @@ class MOTORRSAI():
         return dat
 
     def getEquipementName(self):
-        """Retourne le nom de l'équipemen
-            time.sleep(1)
-
-        print(f"⏱️ Timeout: impossible de se connecter après {timeout}s ({self.IpAddress}:{self.NoMotor})")
-        return False
-t auquel le moteur est connecté"""
+        """Retourne le nom de l'équipement auquel le moteur est connecté"""
         cmd = 'nomRack'
         cmdsend = f"{self.IpAddress}, {self.NoMotor}, {cmd}"
         dat = self.sendMessage(cmdsend)
@@ -466,11 +470,6 @@ t auquel le moteur est connecté"""
         start_time = time.time()
         print(f"⏳ Attente de connexion au serveur... ({self.IpAddress}:{self.NoMotor})")
 
-        time.sleep(1)
-
-        print(f"⏱️ Timeout: impossible de se connecter après {timeout}s ({self.IpAddress}:{self.NoMotor})")
-        return False
-
         while time.time() - start_time < timeout:
             if self.isconnected and self.server_available:
                 print(f"✅ Connexion établie ! ({self.IpAddress}:{self.NoMotor})")
@@ -495,10 +494,9 @@ t auquel le moteur est connecté"""
 # Exemple d'utilisation
 if __name__ == "__main__":
     # Créer plusieurs instances pour tester le multi-client
-    motor1 = MOTORRSAI("10.0.0.0", "2")
-    print(f"Moteur 1 - Position: {motor1.position()}")
-    motor1.move(500)
-    
+    motor1 = MOTORRSAI("10.0.1.30", "1")
+    motor1.update()
+    motor1.setButLogPlusValue(25555)
     # Tester quelques commandes
     #print(f"Moteur 1 - Nom: {motor1.getName()}")
     print(f"Moteur 1 - Position: {motor1.position()}")
