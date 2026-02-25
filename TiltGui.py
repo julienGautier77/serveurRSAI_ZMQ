@@ -81,14 +81,20 @@ class TILTMOTORGUI(QWidget):
         self.unitChangeLat = self.indexUnit
         self.unitChangeVert = self.indexUnit
         self.setWindowTitle(f"{nomWin} : {IPLat} [M{NoMotorLat}]  {IPVert} [M{NoMotorVert}]")
-        
+        self.etatLat = ''
+        self.etatVert = ''
         self.threadLat = PositionThread(mot=self.MOT[0])
         self.threadLat.POS.connect(self.PositionLat)
         time.sleep(0.12)
         
         self.threadVert = PositionThread(mot=self.MOT[1])
         self.threadVert.POS.connect(self.PositionVert)
+
+        self.threadEtatLat = EtatThread(mot=self.MOT[0])
+        self.threadEtatLat.ETAT.connect(self.EtatLat)
         
+        self.threadEtatVert = EtatThread(mot=self.MOT[1])
+        self.threadEtatVert.ETAT.connect(self.EtatVert)
         # Initialisation des unités
         if self.indexUnit == 0:
             self.unitChangeLat = 1
@@ -313,9 +319,15 @@ class TILTMOTORGUI(QWidget):
     def startThread2(self):
         self.threadLat.ThreadINIT()
         self.threadLat.start()
-        time.sleep(0.5)
+        time.sleep(0.1)
         self.threadVert.ThreadINIT()
         self.threadVert.start()
+        time.sleep(0.1)
+        self.threadEtatLat.ThreadINIT()
+        self.threadEtatLat.start()
+        time.sleep(0.1)
+        self.threadEtatVert.ThreadINIT()
+        self.threadEtatVert.start()
 
     def actionButton(self):
         if self.showUnit is True:
@@ -501,15 +513,15 @@ class TILTMOTORGUI(QWidget):
             self.MOT[zzi].stopMotor()
         print("⏹ Arrêt de tous les moteurs")
 
-    @pyqtSlot(object)
-    def PositionLat(self, Posi):
+    @pyqtSlot(float)
+    def PositionLat(self, Pos):
         '''Position Lateral display'''
-        Pos = Posi[0]
-        self.etat = str(Posi[1])
+
         a = float(Pos)
+        self._positionStepLat = a # sans unit change 
         a = a * self.unitChangeLat
         
-        if self.etat == 'FDC-':
+        if self.etatLat == 'FDC-':
             self.position_Lat.setText('⚠️ FDC-')
             self.position_Lat.setStyleSheet("""
                 QLabel {
@@ -521,7 +533,7 @@ class TILTMOTORGUI(QWidget):
                     border-radius: 5px;
                 }
             """)
-        elif self.etat == 'FDC+':
+        elif self.etatLat == 'FDC+':
             self.position_Lat.setText('⚠️ FDC+')
             self.position_Lat.setStyleSheet("""
                 QLabel {
@@ -533,7 +545,7 @@ class TILTMOTORGUI(QWidget):
                     border-radius: 5px;
                 }
             """)
-        elif self.etat == 'Poweroff':
+        elif self.etatLat == 'Poweroff':
             self.position_Lat.setText('❌ Power Off')
             self.position_Lat.setStyleSheet("""
                 QLabel {
@@ -545,19 +557,8 @@ class TILTMOTORGUI(QWidget):
                     border-radius: 5px;
                 }
             """)
-        elif self.etat == 'mvt':
-            self.position_Lat.setText('Mvt...')
-            self.position_Lat.setStyleSheet("""
-                QLabel {
-                    font: bold 14pt;
-                    color: white;
-                    background-color: #1e1e1e;
-                    padding: 6px;
-                    border: 2px solid #4a9eff;
-                    border-radius: 5px;
-                }
-            """)
-        elif self.etat == 'notconnected':
+        
+        elif self.etatLat == 'notconnected':
             self.position_Lat.setText('❌ Non connecté')
             self.position_Lat.setStyleSheet("""
                 QLabel {
@@ -569,7 +570,7 @@ class TILTMOTORGUI(QWidget):
                     border-radius: 5px;
                 }
             """)
-        elif self.etat == 'errorConnect':
+        elif self.etatLat == 'errorConnect':
             self.position_Lat.setText('❌ Erreur')
             self.position_Lat.setStyleSheet("""
                 QLabel {
@@ -594,15 +595,14 @@ class TILTMOTORGUI(QWidget):
                 }
             """)
 
-    @pyqtSlot(object)
-    def PositionVert(self, Posi):
+    @pyqtSlot(float)
+    def PositionVert(self, Pos):
         '''Position Vertical display'''
-        Pos = Posi[0]
-        self.etat = str(Posi[1])
         a = float(Pos)
+        self._positionStepLat = a # sans unit change 
         a = a * self.unitChangeVert
         
-        if self.etat == 'FDC-':
+        if self.etatVert == 'FDC-':
             self.position_Vert.setText('⚠️ FDC-')
             self.position_Vert.setStyleSheet("""
                 QLabel {
@@ -614,7 +614,7 @@ class TILTMOTORGUI(QWidget):
                     border-radius: 5px;
                 }
             """)
-        elif self.etat == 'FDC+':
+        elif self.etatVert == 'FDC+':
             self.position_Vert.setText('⚠️ FDC+')
             self.position_Vert.setStyleSheet("""
                 QLabel {
@@ -626,7 +626,7 @@ class TILTMOTORGUI(QWidget):
                     border-radius: 5px;
                 }
             """)
-        elif self.etat == 'Poweroff':
+        elif self.etatVert == 'Poweroff':
             self.position_Vert.setText('❌ Power Off')
             self.position_Vert.setStyleSheet("""
                 QLabel {
@@ -638,7 +638,7 @@ class TILTMOTORGUI(QWidget):
                     border-radius: 5px;
                 }
             """)
-        elif self.etat == 'mvt':
+        elif self.etatVert == 'mvt':
             self.position_Vert.setText('Mvt...')
             self.position_Vert.setStyleSheet("""
                 QLabel {
@@ -650,7 +650,7 @@ class TILTMOTORGUI(QWidget):
                     border-radius: 5px;
                 }
             """)
-        elif self.etat == 'notconnected':
+        elif self.etatVert == 'notconnected':
             self.position_Vert.setText('❌ Non connecté')
             self.position_Vert.setStyleSheet("""
                 QLabel {
@@ -662,7 +662,7 @@ class TILTMOTORGUI(QWidget):
                     border-radius: 5px;
                 }
             """)
-        elif self.etat == 'errorConnect':
+        elif self.etatVert == 'errorConnect':
             self.position_Vert.setText('❌ Erreur')
             self.position_Vert.setStyleSheet("""
                 QLabel {
@@ -687,6 +687,12 @@ class TILTMOTORGUI(QWidget):
                 }
             """)
 
+    def EtatLat(self,etat):
+        self.etatLat = etat
+
+    def EtatVert(self,etat):
+        self.etatVert = etat
+
     def closeEvent(self, event):
         """When closing the window"""
         self.fini()
@@ -697,20 +703,24 @@ class TILTMOTORGUI(QWidget):
         '''Stop threads on close'''
         self.threadLat.stopThread()
         self.threadVert.stopThread()
+        self.threadEtatLat.stopThread()
+        self.threadEtatVert.stopThread()
         self.isWinOpen = False
         time.sleep(0.1)
 
 
 class PositionThread(QtCore.QThread):
-    '''Second thread to display position'''
-    import time
-    POS = QtCore.pyqtSignal(object)
+    '''Thread pour afficher position et état'''
+    POS = QtCore.pyqtSignal(float)
 
     def __init__(self, parent=None, mot=''):
         super(PositionThread, self).__init__(parent)
         self.MOT = mot
         self.parent = parent
         self.stop = False
+        self.positionSleep = 0.05
+        self.etat_old = ""
+        self.Posi_old = 0
 
     def run(self):
         while True:
@@ -718,15 +728,45 @@ class PositionThread(QtCore.QThread):
                 break
             else:
                 Posi = (self.MOT.position())
-                time.sleep(0.05)
-                
+                time.sleep(self.positionSleep)
                 try:
-                    etat = self.MOT.etatMotor()
-                    time.sleep(0.05)
-                    self.POS.emit([Posi, etat])
-                    time.sleep(0.01)
+                    if self.Posi_old != Posi :
+                        self.POS.emit(Posi)
+                        self.Posi_old = Posi
                 except Exception as e:
                     print('error emit', e)
+
+    def ThreadINIT(self):
+        self.stop = False
+
+    def stopThread(self):
+        self.stop = True
+        time.sleep(0.1)
+
+
+class EtatThread(QtCore.QThread):
+    '''Thread pour afficher état'''
+    ETAT = QtCore.pyqtSignal(str)
+
+    def __init__(self, parent=None, mot=''):
+        super(EtatThread, self).__init__(parent)
+        self.MOT = mot
+        self.parent = parent
+        self.stop = False
+        self.etatSleep = 0.5
+        self.etat_old = ""
+        self.Posi_old = 0
+
+    def run(self):
+        while self.stop is False:
+            time.sleep(self.etatSleep)
+            etat = self.MOT.etatMotor()
+            try:
+                if self.etat_old != etat:
+                        self.ETAT.emit(etat)
+                        self.etat_old = etat
+            except Exception as e:
+                print('error etat emit', e)
 
     def ThreadINIT(self):
         self.stop = False

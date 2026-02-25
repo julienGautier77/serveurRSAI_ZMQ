@@ -41,13 +41,12 @@ class WorkerSignals(QObject):
 class SERVERRSAI(QWidget):
     signalServer = pyqtSignal(object)
     
-    def __init__(self, parent=None, test=False):
+    def __init__(self, parent=None):
         super(SERVERRSAI, self).__init__(parent)
 
         self.setStyleSheet(qdarkstyle.load_stylesheet(qt_api='pyqt6'))
         self.hostname = _socket.gethostname()
         self.iphost = _socket.gethostbyname(self.hostname)
-        self.test = test
 
         # log 
         self.actionLog = deque(maxlen=30)
@@ -151,7 +150,7 @@ class SERVERRSAI(QWidget):
                 self.conf.setValue(name + "/IPRack", ip)
                 self.conf.setValue(name + "/numESim", i)
                 self.conf.setValue(name + "/numMoteur", j + 1)
-                self.conf.setValue(name + "/stepmotor", 1 / float(step))
+                self.conf.setValue(name + "/stepmotor", float(step))
                 self.conf.setValue(name + "/buteePos", butplus)
                 self.conf.setValue(name + "/buteeNeg", butmoins)
                 self.conf.setValue(name + "/moteurType", "RSAI")
@@ -238,8 +237,6 @@ class SERVERRSAI(QWidget):
         try:
             self.PilMot = ctypes.windll.LoadLibrary(dll_file)
             self.addLog('SYSTEM', ' Using PilMotTango.dll')
-            if self.test:
-                raise Exception("test mode")
         except Exception as e:
             self.addLog('ERROR', ' Error import PilMotTango.dll')
             import dummyPilMotTango_dll
@@ -266,7 +263,7 @@ class SERVERRSAI(QWidget):
             'details': details
         }
         self.actionLog.append(log_entry)
-        print(f"[LOG] {timestamp} - {action}  -  {details}")
+        #  print(f"[LOG] {timestamp} - {action}  -  {details}")
     
     def showLog(self):
         """Affiche la fenêtre de log"""
@@ -331,7 +328,7 @@ class SERVERZMQ(QtCore.QThread):
 
         # ROUTER pour recevoir les clients
         self.frontend = self.context.socket(zmq.ROUTER)
-        self.frontend.setsockopt(zmq.LINGER,0) # le socket s'arrte de suite
+        self.frontend.setsockopt(zmq.LINGER,100) # le socket s'arrte de suite
         self.frontend.setsockopt(zmq.SNDHWM, 1000)
         self.frontend.setsockopt(zmq.RCVHWM, 1000)
         self.frontend.bind(f"tcp://*:{self.frontend_port}")
@@ -340,7 +337,7 @@ class SERVERZMQ(QtCore.QThread):
         self.backend = self.context.socket(zmq.DEALER)
         self.backend.setsockopt(zmq.SNDHWM, 1000)
         self.backend.setsockopt(zmq.RCVHWM, 1000)
-        self.backend.setsockopt(zmq.LINGER,0)
+        self.backend.setsockopt(zmq.LINGER,100)
         self.backend.bind(f"tcp://*:{self.backend_port}")
 
         self.isConnected = True
@@ -476,12 +473,12 @@ class SERVERZMQ(QtCore.QThread):
             msgsplit = [msg.strip() for msg in msgsplit]
             if len(msgsplit) > 1:
                 ip = msgsplit[0]
-                axe = int(msgsplit[1])
+                axe =  int(msgsplit[1])
                 cmd = msgsplit[2]
-                numEsim = int(self.listRackIP.index(ip))
+                numEsim =  int(self.listRackIP.index(ip))
                 dict_name = "self.dictMotor" + "_" + str(ip)
                 name = self.dict_moteurs[dict_name][axe]
-                #  print("message decode ip axe,cmd,num esim,name:", ip, axe, cmd, numEsim, name)
+               # print("message decode ip axe,cmd,num esim,name:", ip, axe, cmd, numEsim, name)
             else:
                 cmd = msgsplit[0]
             
@@ -490,7 +487,7 @@ class SERVERZMQ(QtCore.QThread):
                 valueStr = msgsplit[3]
                 para3 = str(valueStr)
                 try:
-                    value = ctypes.c_int(int(valueStr))
+                    value = ctypes.c_int(int(float(valueStr)))
                 except Exception as e:
                     print(f'Error converting value to int: {e}')
                     value = ctypes.c_int(1)
@@ -523,23 +520,39 @@ class SERVERZMQ(QtCore.QThread):
 
             elif cmd == 'move':
                 regCde = ctypes.c_uint(2)
+                axe = ctypes.c_int(axe)
+                numEsim = ctypes.c_int(numEsim)
                 err = self.PilMot.wCdeMot(numEsim, axe, regCde, value, vit)
                 log_message = ("move", f"{client_id} {name}  → position  {valueStr}")
                 return 'ok\n', log_message
 
             elif cmd == 'rmove':
-                regCde = ctypes.c_uint(4)
+                #regCde = ctypes.c_uint(4)
+                axe = ctypes.c_int(int(axe))
+                numEsim = ctypes.c_int(int(numEsim))
+                pos = self.PilMot.rPositionMot(numEsim, axe)
+                # time.sleep(0.001)
+                #print(f'rome {pos} {value} ')
+                value = int(pos) + int(valueStr)
+                value = ctypes.c_int(int(value))
+                regCde = ctypes.c_uint(2) # on bouge en aboslue 
                 err = self.PilMot.wCdeMot(numEsim, axe, regCde, value, vit)
-                log_message = ("rmove", f"RMOVE - {name} déplacement relatif {valueStr}")
+                #err = self.PilMot.wCdeMot(numEsim, axe, regCde, value, vit)
+                #print(f'rmove Esim: {numEsim} Axe : {axe}' )
+                log_message = ("rmove", f"RMOVE - {name} déplacement relatif {valueStr} Esim: {numEsim} Axe : {axe} cmd : {regCde}")
                 return 'ok\n', log_message
 
             elif cmd == 'stop':
                 regCde = ctypes.c_uint(8)
+                axe = ctypes.c_int(axe)
+                numEsim = ctypes.c_int(numEsim)
                 err = self.PilMot.wCdeMot(numEsim, axe, regCde, 0, 0)
                 log_message = ("Stop",f"{'STOP - '}{name} arrêté ")
                 return 'ok\n', log_message
 
             elif cmd == 'position':
+                axe = ctypes.c_int(axe)
+                numEsim = ctypes.c_int(numEsim)
                 pos = self.PilMot.rPositionMot(numEsim, axe)
                 return str(pos) + '\n', None
 
@@ -576,6 +589,8 @@ class SERVERZMQ(QtCore.QThread):
                 return etat + '\n', None
 
             elif cmd == 'setzero':
+                axe = ctypes.c_int(axe)
+                numEsim = ctypes.c_int(numEsim)
                 regCde = ctypes.c_int(1024)
                 err = self.PilMot.wCdeMot(numEsim, axe, regCde, ctypes.c_int(0), ctypes.c_int(0))
                 log_message =("Set Zero", f"SETZERO - {name} position mise à zéro")
@@ -605,7 +620,7 @@ class SERVERZMQ(QtCore.QThread):
                 try:
                     self.parent.db.setPosRef(ip, axe, nRef, valPos)
                     self.conf.setValue(name + "/ref" + str(nRef - 1) + "Pos", valPos)
-                    log_message = ('Reference', f"SETREF - {name} REF{nRef} position → {valPos}")
+                    log_message = ('Reference', f"SETREF - {name} REF {nRef} position → {valPos}")
                     return 'ok\n', None
                 except Exception as e:
                     #print(f'Error setRefPos: {e}')
@@ -628,13 +643,26 @@ class SERVERZMQ(QtCore.QThread):
             elif cmd == 'step':
                 st = str(self.conf.value(name + '/stepmotor'))
                 return st + '\n', None
+            
+            elif cmd == 'setStep':
+                # print('set step in server')
+                try:
+                    step = float(para3)
+                    self.parent.db.setStep(ip,axe,step)
+                    self.conf.setValue(name + '/stepmotor', step)
+                    log_message = ('Step', f"SETStep - {name}  new step → {step}")
+                    return 'ok\n', None
+                except Exception as e:
+                    log_message = ('ERROR', f"SET Step - {e}")
+                    return 'errorFB\n', log_message
 
             elif cmd == 'buteePos' or cmd == 'buteeNeg':
                 but = str(self.conf.value(name + '/' + cmd))
                 return but + '\n', None
+            
             elif cmd == 'setButeePos' :
                 try:
-                    butPos = int(para3)
+                    butPos = float(para3)
                     self.parent.db.setButeePos(ip, axe, butPos)
                     self.conf.setValue(name + '/buteePos', butPos)
                     log_message = ('Butee', f"SETBUTEEPOS - {name} butée positive → {butPos}")
@@ -643,10 +671,11 @@ class SERVERZMQ(QtCore.QThread):
                     # print(f'Error setButeePos: {e}')
                     log_message = ('ERROR', f"SETBUTEEPOS - {e}")
                     return 'errorFB\n', log_message
+            
             elif cmd == 'setButeeNeg':
                 try:
-                    butNeg = int(para3)
-                    self.parent.db.setButLogPlusValue(butNeg)
+                    butNeg = float(para3)
+                    self.parent.db.setButLogNegValue(ip,axe,butNeg)
                     self.conf.setValue(name + '/buteeNeg', butNeg)
                     log_message = ('Butee', f"SETBUTEENEG - {name} butée négative → {butNeg}")
                     return 'ok\n', None
@@ -654,6 +683,7 @@ class SERVERZMQ(QtCore.QThread):
                     # print(f'Error setButeeNeg: {e}')
                     log_message = ('ERROR', f"SETBUTEENEG - {e}")
                     return 'errorFB\n', log_message
+                
             elif cmd == 'nomRack':
                 nameRack = str(self.conf.value(name + '/' + cmd))
                 return nameRack + '\n', None
@@ -663,6 +693,14 @@ class SERVERZMQ(QtCore.QThread):
             elif cmd == 'nbMotRackIP': # retourne l nombre de moteur pour le rack IP 
                 nbMotRack = self.parent.nbMotorRack
                 return str(nbMotRack) + '\n', None
+            elif cmd == 'preset':
+                axe = ctypes.c_int(axe)
+                numEsim = ctypes.c_int(numEsim)
+                regCde = ctypes.c_uint(2048) # preset position 
+                err = self.PilMot.wCdeMot(numEsim ,axe, regCde, value, vit)
+                sendmsg = 'ok'+'\n'
+                log_message = ('Preset', f"SET nex position - {value} ")
+                return 'ok\n', None
             else:
                 log_message = ('System', f"UNKNOWN COMMAND - Commande inconnue: {cmd}")
                 return 'error: unknown command\n', log_message
@@ -915,6 +953,6 @@ if __name__ == "__main__":
     import sys
     from PyQt6.QtWidgets import QApplication
     app = QApplication(sys.argv)
-    server = SERVERRSAI(test=True)
+    server = SERVERRSAI()
     server.show()
     sys.exit(app.exec())
